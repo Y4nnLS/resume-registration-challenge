@@ -5,12 +5,15 @@ preenchimento manual ou auxílio da leitura de currículo em PDF.
 
 ## Estado atual
 
-A Issue #1 prepara a fundação técnica: frontend React com navegação e estilos, backend
-Express com `GET /health`, TypeScript, lint, formatação e build nos dois projetos.
-A interface atual é apenas uma apresentação de aplicação em desenvolvimento.
+A fundação e a Issue #3 estão implementadas e validadas. O backend oferece cadastro e
+consulta de candidatos, repository SQL Server, scripts de setup/seed, validação Zod,
+Swagger e testes backend. A Issue #3 aguarda apenas revisão, commit e PR.
+A interface ainda é apenas a apresentação inicial; formulários e extração de PDF ficam
+para próximas entregas. O backend precisa de SQL Server configurado para iniciar.
 
-Cadastro, consulta, banco de dados, formulários, extração de PDF e Swagger ainda não
-estão implementados. O backend não depende de SQL Server para iniciar nesta etapa.
+O SQL Server 2022 foi validado localmente via Docker Desktop, com bancos e logins
+separados para desenvolvimento e integração. O quality gate final passou, incluindo
+12 testes locais e 2 testes com SQL Server real, totalizando 14 testes automatizados.
 
 ## Stack e versões
 
@@ -27,6 +30,9 @@ estão implementados. O backend não depende de SQL Server para iniciar nesta et
 | tsx — desenvolvimento do backend | 4.23.15          |
 | ESLint / typescript-eslint       | 10.11.0 / 8.71.0 |
 | Prettier                         | 3.9.9            |
+| mssql / Zod                      | 12.7.2 / 4.6.5   |
+| swagger-ui-express               | 5.0.1            |
+| Vitest / Supertest               | 5.0.3 / 7.3.0    |
 
 Dependências diretas são fixadas nos respectivos `package.json`; cada aplicação possui
 seu próprio `package-lock.json`. O TypeScript 5.9.3 foi escolhido dentro da faixa
@@ -36,10 +42,14 @@ de compatibilidade declarada pelo typescript-eslint, atendendo à decisão de ma
 
 - Node.js 24.19.0 ou atualização posterior da linha 24.x, com npm.
 - Git e um navegador atualizado.
+- Docker Desktop instalado e em execução, configurado para containers Linux, com a porta
+  local 1433 disponível para o SQL Server 2022.
 - VS Code é recomendado, mas não obrigatório.
 
-O ambiente principal é Windows. As ferramentas do projeto são instaladas localmente
-em cada aplicação. Docker não é necessário.
+O ambiente principal é Windows, com comandos em PowerShell. Docker fornece somente o
+SQL Server local; frontend e backend executam pelo npm no host. Não é necessário instalar
+SQL Server ou SQL Server Management Studio (SSMS) no Windows: o provisionamento usa o
+`sqlcmd` incluído no container.
 
 ## Instalação
 
@@ -59,6 +69,9 @@ Para reproduzir exatamente as dependências dos lockfiles, use `npm ci` no lugar
 `npm install` dentro de cada projeto. Não há `package.json` ou instalação npm na raiz.
 
 ## Executar localmente
+
+Configure o SQL Server e o arquivo `backend/.env` conforme as próximas seções antes
+de iniciar o backend. O frontend pode ser executado independentemente.
 
 Em um terminal, a partir da raiz:
 
@@ -90,20 +103,170 @@ npm run dev
 Abra <http://127.0.0.1:5173>. Os dois servidores escutam somente no endereço local.
 Encerre cada processo com `Ctrl+C`.
 
+### SQL Server local via Docker
+
+Na primeira configuração, obtenha a imagem e crie um volume persistente. O nome de volume
+abaixo é uma sugestão para reproduzir o ambiente:
+
+```powershell
+docker pull mcr.microsoft.com/mssql/server:2022-latest
+docker volume create resume-registration-sql-data
+```
+
+Defina uma senha administrativa forte no prompt e suba o container. O comando passa a
+senha por variável de ambiente, sem escrevê-la no comando ou em um arquivo versionado:
+
+```powershell
+$sqlAdminCredential = [PSCredential]::new('sa', (Read-Host 'Senha local para sa' -AsSecureString))
+try {
+    $env:MSSQL_SA_PASSWORD = $sqlAdminCredential.GetNetworkCredential().Password
+    docker run --detach --name resume-registration-sql `
+        --env ACCEPT_EULA=Y --env MSSQL_PID=Developer --env MSSQL_SA_PASSWORD `
+        --publish 127.0.0.1:1433:1433 `
+        --volume resume-registration-sql-data:/var/opt/mssql `
+        mcr.microsoft.com/mssql/server:2022-latest
+} finally {
+    Remove-Item Env:MSSQL_SA_PASSWORD -ErrorAction SilentlyContinue
+    Remove-Variable sqlAdminCredential
+}
+```
+
+O comando aceita a licença da imagem e usa a edição Developer. A porta 1433 do host
+é encaminhada à porta 1433 do container, e `/var/opt/mssql` fica no volume persistente.
+Confira `docker logs --tail 30 resume-registration-sql` e aguarde a mensagem de que o
+SQL Server está pronto para conexões. Para iniciar novamente um container já criado,
+use `docker start resume-registration-sql`; não repita `docker run`. Preserve o volume
+para manter os dados.
+
+### Bancos e logins dedicados
+
+Abra o `sqlcmd` dentro do container. Ele solicitará a senha administrativa; `-C` aceita
+o certificado autossinado deste ambiente local:
+
+```powershell
+docker exec -it resume-registration-sql /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b
+```
+
+No primeiro provisionamento, execute o bloco abaixo nessa sessão. Substitua os dois
+placeholders de senha apenas localmente, usando senhas distintas para `resume_app` e
+`resume_test`. Não salve o bloco preenchido na documentação ou em scripts versionados.
+
+```sql
+USE master;
+GO
+IF DB_ID(N'ResumeRegistration') IS NULL
+    CREATE DATABASE [ResumeRegistration];
+GO
+IF DB_ID(N'ResumeRegistration_test') IS NULL
+    CREATE DATABASE [ResumeRegistration_test];
+GO
+CREATE LOGIN [resume_app]
+    WITH PASSWORD = N'<senha-local-desenvolvimento>',
+         DEFAULT_DATABASE = [ResumeRegistration], CHECK_POLICY = OFF;
+CREATE LOGIN [resume_test]
+    WITH PASSWORD = N'<senha-local-integracao>',
+         DEFAULT_DATABASE = [ResumeRegistration_test], CHECK_POLICY = OFF;
+GO
+USE [ResumeRegistration];
+CREATE USER [resume_app] FOR LOGIN [resume_app];
+ALTER ROLE db_datareader ADD MEMBER [resume_app];
+ALTER ROLE db_datawriter ADD MEMBER [resume_app];
+GRANT CREATE TABLE TO [resume_app];
+GRANT ALTER ON SCHEMA::dbo TO [resume_app];
+GO
+USE [ResumeRegistration_test];
+CREATE USER [resume_test] FOR LOGIN [resume_test];
+ALTER ROLE db_datareader ADD MEMBER [resume_test];
+ALTER ROLE db_datawriter ADD MEMBER [resume_test];
+GRANT CREATE TABLE TO [resume_test];
+GRANT ALTER ON SCHEMA::dbo TO [resume_test];
+GO
+```
+
+`CHECK_POLICY = OFF` foi escolhido apenas para simplificar as credenciais deste ambiente
+local de desafio e não é uma recomendação para produção.
+
+Digite `EXIT` para sair. Cada login fica mapeado somente ao seu banco, sem `sysadmin`.
+Leitura/escrita atendem à aplicação e aos testes; `CREATE TABLE` e alteração do schema
+`dbo` permitem executar o setup inicial e a preparação da suíte SQL.
+
+O arquivo `backend/database/00-create-database.sql` também contém a criação condicional
+do banco de desenvolvimento; para teste, o nome é `ResumeRegistration_test`. A referência
+ao SSMS no comentário desse script é histórica: ele pode ser executado com `sqlcmd`.
+Os comandos acima já criam os dois bancos, sem exigir edição dos scripts versionados.
+
 ### Variáveis de ambiente
 
-O backend funciona sem `.env`, usando a porta 3000. Para personalizá-la, dentro de `backend/`:
+Dentro de `backend/`, crie a configuração local somente se `.env` ainda não existir:
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-Edite `PORT` no arquivo local e reinicie o servidor. Aceita-se um inteiro entre 1 e 65535.
-Os scripts `dev` e `start` carregam `.env` pelo recurso nativo do Node.js; variáveis já
-definidas no processo têm precedência. O arquivo local é ignorado pelo Git.
+Se `.env` já existir, preserve seus valores ao ajustar a configuração. Use `DB_SERVER=127.0.0.1`,
+`DB_PORT=1433`, `DB_NAME=ResumeRegistration` e `DB_USER=resume_app`; preencha `DB_PASSWORD`
+com a senha desse login. Descomente todas as variáveis `TEST_DB_*` do exemplo e configure
+o mesmo host/porta, `TEST_DB_NAME=ResumeRegistration_test`, `TEST_DB_USER=resume_test` e
+`TEST_DB_PASSWORD` com a senha de integração. Neste ambiente local, mantenha
+`DB_ENCRYPT=true`, `DB_TRUST_SERVER_CERTIFICATE=true` e os equivalentes `TEST_DB_*`.
 
-Não há credenciais ou variáveis de banco nesta fundação. O frontend ainda não utiliza
-variáveis próprias nem faz chamadas ao backend.
+`PORT` aceita um inteiro entre 1 e 65535 e usa 3000 por padrão. Os scripts `dev`, `start`,
+`db:setup`, `db:seed` e `test:db` carregam `.env` pelo recurso nativo do Node.js; variáveis
+já definidas no processo têm precedência. As credenciais reais da aplicação ficam somente
+no `backend/.env`, ignorado pelo Git; `.env.example` mantém placeholders.
+
+| Variável                      | Uso                                                                              |
+| ----------------------------- | -------------------------------------------------------------------------------- |
+| `DB_SERVER`                   | Host SQL Server, por exemplo `127.0.0.1`.                                        |
+| `DB_PORT`                     | Porta TCP fixa, padrão `1433`; use a porta realmente configurada.                |
+| `DB_NAME`                     | Banco, por exemplo `ResumeRegistration`.                                         |
+| `DB_USER` / `DB_PASSWORD`     | Login SQL dedicado e senha local.                                                |
+| `DB_ENCRYPT`                  | `true` ou `false`; padrão `true`.                                                |
+| `DB_TRUST_SERVER_CERTIFICATE` | Padrão `false`; o exemplo usa `true` somente para certificado autossinado local. |
+
+Não altere as configurações globais do sistema. Não versionar `.env`, senhas ou dados pessoais.
+O frontend ainda não faz chamadas à API. Não há dependência de `dotenv`: o Node carrega o ambiente.
+
+### Schema e seed
+
+Com os bancos e logins provisionados e o `.env` preenchido, execute dentro de `backend/`:
+
+```powershell
+npm run db:setup
+npm run db:seed
+```
+
+`db:setup` aplica `01-create-candidates.sql` no banco selecionado por `DB_NAME`. O banco deve
+existir previamente. O script é idempotente e não apaga dados nem modifica tabelas existentes.
+Trata-se de um script inicial versionado, sem mecanismo automático para futuras alterações de schema.
+
+O seed insere três candidatos fictícios, com e-mails `example.com`, somente se `dbo.Candidates`
+estiver vazia. Caso já existam registros, informa `skipped` e não altera nada. A transação impede
+duplicação por execuções simultâneas. Não existe regra de unicidade de e-mail na aplicação ou tabela.
+
+### API e Swagger
+
+Abra <http://127.0.0.1:3000/api-docs/> após iniciar o backend. A especificação OpenAPI 3.0.3
+fica em `backend/src/docs/openapi.ts`; o Swagger permite executar os três endpoints.
+
+| Operação                  | Sucesso                            | Erros principais |
+| ------------------------- | ---------------------------------- | ---------------- |
+| `POST /api/candidates`    | 201, candidato e header `Location` | 400, 500         |
+| `GET /api/candidates`     | 200, array (ou `[]`)               | 500              |
+| `GET /api/candidates/:id` | 200, candidato                     | 400, 404, 500    |
+
+O cadastro recebe `fullName` (150) e `email` válido (254), obrigatórios; `phone` (30),
+`desiredPosition` (150) e `professionalSummary` (2000) são opcionais. Texto é aparado nas
+extremidades; opcionais omitidos, vazios ou nulos tornam-se `null`. Campos desconhecidos são
+rejeitados. E-mail mantém sua capitalização. `id` e `createdAt` são gerados no banco.
+
+As respostas incluem todos os campos, `id` inteiro positivo e `createdAt` ISO 8601 UTC.
+A listagem não tem paginação e ordena por `createdAt DESC, id DESC`. Erros seguem
+`{ "error": { "code": "...", "message": "...", "details": [...] } }`, com `details` opcional.
+
+`/health` continua sendo apenas liveness. A inicialização conecta um pool SQL antes de
+abrir HTTP; o pool é reutilizado e fechado no encerramento. SQL indisponível na inicialização
+impede o servidor de iniciar; falhas durante requisições retornam erro sanitizado.
 
 ## Qualidade e build
 
@@ -142,9 +305,54 @@ na mesma porta. Os builds são gerados em `dist/` de cada projeto.
 - Acessar um endereço inexistente, como `/nao-existe`, e usar “Voltar ao início”.
 - Conferir ausência de erros no console do navegador.
 
-Não há suíte de testes automatizados nesta Issue: o comportamento se limita ao
-bootstrap e à resposta estática de saúde. Testes de regras, endpoints e integração
-serão adicionados com as funcionalidades correspondentes; não há cobertura declarada.
+### Testes backend
+
+Dentro de `backend/`:
+
+```powershell
+npm test
+npm run test:db
+```
+
+`npm test` executa 12 testes unitários e HTTP com Vitest/Supertest, sem conectar ao SQL Server.
+Eles cobrem validação representativa, normalização de opcionais, criação e candidato ausente
+no service, os três endpoints e o isolamento da configuração `TEST_DB_*`. O repository é
+substituído nesses testes, portanto eles não representam validação do banco. `typecheck`
+também verifica testes e scripts; `build` continua emitindo somente `src/`.
+
+`npm run test:db` é separado e **falha**, em vez de aparentar sucesso, se faltar configuração.
+Use o banco exclusivo `ResumeRegistration_test` e o login `resume_test`, provisionados
+conforme as seções anteriores, com todos os `TEST_DB_*` preenchidos no `.env`.
+Nenhum `DB_*` serve como alternativa. A suíte aplica o schema no banco de teste;
+esse usuário precisa executar o schema inicial, ler, inserir, atualizar e excluir.
+
+A suíte SQL contém dois cenários: reaplicação do schema/seed sem duplicar dados e persistência
+com consulta posterior, incluindo e-mail repetido. Ela valida o sufixo `_test` antes da conexão
+e confirma `DB_NAME()` antes de qualquer escrita. A limpeza remove somente IDs criados pela
+própria execução; não há `DROP`, `TRUNCATE` ou exclusão global.
+
+A parametrização é verificada pela revisão do repository. Os dois testes SQL não
+constituem uma prova de que todas as consultas são parametrizadas.
+
+### Validação concluída da Issue #3
+
+A validação real foi executada com sucesso no SQL Server 2022 via Docker Desktop,
+usando o container `resume-registration-sql`, os dois bancos e os logins dedicados:
+
+- `npm run db:setup` executado duas vezes com sucesso.
+- `npm run db:seed`: primeira execução com `Seed: inserted`; segunda com
+  `Seed: skipped: Candidates is not empty`.
+- `npm run test:db`: 2/2 testes SQL passaram.
+- Verificação manual: Swagger em `/api-docs` abriu; `POST /api/candidates` retornou
+  201 e `Location`; listagem e consulta por ID retornaram o candidato.
+- Payload inválido retornou 400 `VALIDATION_ERROR`; candidato inexistente retornou
+  404 `CANDIDATE_NOT_FOUND`.
+- Após reiniciar o backend, o candidato continuou disponível, confirmando a persistência
+  no SQL Server.
+
+O quality gate final do backend passou: `npm run format:check`, `npm run lint`,
+`npm run typecheck`, `npm test` (12/12), `npm run test:db` (2/2) e `npm run build`.
+A suíte foi mantida propositalmente enxuta, com 14 testes automatizados representativos.
 
 ## Estrutura e arquitetura
 
@@ -155,9 +363,22 @@ frontend/
   src/index.css     Integração Tailwind
   vite.config.ts    Plugins e servidores locais
 backend/
-  src/app.ts        Composição do Express e GET /health
-  src/server.ts     Porta e inicialização HTTP
-  .env.example      Exemplo seguro de configuração
+  src/app.ts        Composição HTTP e Swagger, sem conexão ao importar
+  src/server.ts     Inicialização HTTP, pool e encerramento
+  src/config/       Ambiente e pool SQL
+  src/routes/       Rotas de candidatos
+  src/controllers/  Adaptação HTTP e validação na fronteira
+  src/services/     Casos de uso
+  src/repositories/ SQL parametrizado
+  src/validators/   Schemas Zod e tipos inferidos de entrada
+  src/models/       Contrato de saída
+  src/errors/       Erro esperado da aplicação
+  src/middlewares/  Tratamento centralizado de erros
+  src/docs/         OpenAPI
+  database/         Scripts SQL de criação e seed
+  scripts/          Execução de setup/seed
+  tests/            Testes unitários, HTTP e SQL separados
+  .env.example      Configuração de desenvolvimento e testes
 .ai/                Contexto enxuto para agentes
 AGENTS.md           Mapa do projeto e das instruções
 DESENVOLVIMENTO.md   Registro real do processo e uso de IA
@@ -165,18 +386,20 @@ DESENVOLVIMENTO.md   Registro real do processo e uso de IA
 
 Cada aplicação tem configurações próprias de TypeScript e ESLint, manifesto e lockfile.
 Não há workspaces. No backend, separar a aplicação da abertura da porta permite
-importá-la em testes futuros sem iniciar um servidor automaticamente.
+importá-la nos testes sem iniciar um servidor automaticamente.
 
-A arquitetura de negócio planejada é:
+A arquitetura de negócio implementada é:
 
 ```text
 Route → Controller → Service → Repository → SQL Server
 ```
 
-Essas camadas serão criadas conforme necessárias. A persistência futura utilizará
-`mssql`, SQL parametrizado e SQL Server local com usuário SQL dedicado, sem ORM.
-O PDF será processado somente em memória, preenchendo um formulário para revisão;
-nenhum arquivo será persistido. Essas funcionalidades não fazem parte da entrega atual.
+O repository usa `mssql` com parâmetros e recebe um pool explícito. Os services recebem
+um repository tipado pela implementação, permitindo testes sem framework de injeção ou
+interfaces adicionais. Controllers validam entradas com schemas Zod; não há middleware
+genérico de validação. A especificação OpenAPI é pequena e mantida manualmente.
+
+O PDF ainda não foi implementado; continuará restrito ao processamento em memória.
 
 ## Problemas comuns
 
@@ -187,6 +410,14 @@ nenhum arquivo será persistido. Essas funcionalidades não fazem parte da entre
   a partir de 24.19.0.
 - **Build ausente ao executar `npm start`:** rode `npm run build` primeiro no backend.
 - **Falha de rede ao instalar:** confira acesso ao registro npm e eventuais restrições do ambiente.
+- **Falha ao iniciar backend:** confira `DB_*`, Docker Desktop, o estado e os logs do container
+  `resume-registration-sql`, a publicação da porta 1433, o login e seu mapeamento ao banco.
+- **Tabela inexistente:** execute `db:setup` ou o script de schema no banco correto.
+- **Erro de permissão no setup:** use a conta de provisionamento; não amplie privilégios de runtime sem necessidade.
+- **Testes SQL abortados:** configure todos os `TEST_DB_*` de conexão; o banco deve existir e terminar em `_test`.
+- **Warning TLS local:** `[DEP0123] DeprecationWarning: Setting the TLS ServerName to an IP address...`
+  ocorre nas conexões com `127.0.0.1` e TLS. Foi observado como não bloqueante nas validações;
+  nenhuma alteração de código foi feita para ocultá-lo nesta tarefa.
 
 ## Processo e próximos passos
 
@@ -194,6 +425,6 @@ Consulte [DESENVOLVIMENTO.md](DESENVOLVIMENTO.md) para decisões, participação
 ajustes solicitados pelo desenvolvedor e resultados de validação. [AGENTS.md](AGENTS.md)
 direciona para os documentos específicos de contexto.
 
-O desenvolvimento avança por Issues e planos aprovados. A próxima entrega funcional
-definirá os contratos da API de candidatos e a integração com o banco; não é iniciada
-automaticamente ao concluir esta fundação.
+O desenvolvimento avança por Issues e planos aprovados. A Issue #3 está implementada
+e validada, aguardando apenas revisão, commit e PR autorizados pelo desenvolvedor.
+As próximas entregas tratarão da extração de PDF e da interface de cadastro e consulta.
