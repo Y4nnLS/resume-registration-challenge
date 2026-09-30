@@ -21,47 +21,74 @@ arquitetura, convenções, domínio, testes e workflow. Assim, as próximas tare
 consultar as decisões existentes sem depender da releitura de toda a conversa.
 
 Preservei o commit inicial e defini Conventional Commits para os próximos commits.
-A publicação depende da minha autorização. Até esta revisão, não houve commit, push,
-abertura de PR ou merge das alterações da Issue #1.
+A publicação depende da minha autorização. Na revisão da fundação, ainda não havia
+commit, push, abertura de PR ou merge das alterações da Issue #1; o PR dessa entrega
+foi posteriormente identificado como #2.
 
-Este documento acompanha o projeto em andamento. A fundação está implementada e verificada;
-as funcionalidades principais do desafio ainda serão desenvolvidas nas próximas Issues.
+Este documento acompanha o projeto em andamento. A fundação e a API de candidatos com
+persistência SQL estão implementadas e validadas; extração de PDF e interface de cadastro
+e consulta ficam para as próximas Issues.
+
+Na Issue #3, iniciei a API de candidatos e a persistência na branch `feat/candidate-api`.
+Corrigi a referência inicial à Issue #2, que corresponde ao PR da fundação, e aprovei
+o plano do Codex após revisar contratos, banco, validação e testes. Solicitei validação
+simples, preservação das configurações existentes quando suficientes e testes SQL
+exclusivamente com `TEST_DB_*`, sem usar credenciais de desenvolvimento como alternativa.
+Solicitei ao Codex a redução da suíte para testes representativos, sem buscar cobertura
+exaustiva: 12 testes locais e 2 testes SQL separados. Inicialmente, a integração real
+ficou pendente por falta do banco de teste e de `TEST_DB_*`. Depois, configurei manualmente
+o SQL Server via Docker Desktop, os bancos e os logins, e realizei as validações manuais
+descritas na seção 5. O quality gate final passou, incluindo os 14 testes automatizados.
+A Issue #3 está implementada e validada, aguardando apenas revisão, commit e PR.
 
 ## 2. Principais decisões técnicas
 
-| Decisão                                           | Motivo e aplicação nesta etapa                                                                                                                                                                                 |
-| ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Dois projetos npm, sem workspaces                 | Optei por separar `frontend/` e `backend/`, cada um com manifesto e lockfile próprios, mantendo instalação e execução compreensíveis.                                                                          |
-| React, TypeScript e Vite no frontend              | Mantive a stack definida para o desafio. Configurei, com auxílio do Codex, Router e Tailwind para comprovar navegação e estilos com uma interface mínima.                                                      |
-| Node.js, TypeScript e Express no backend          | Mantive uma aplicação HTTP pequena, com `GET /health`, sem antecipar regras de negócio.                                                                                                                        |
-| Arquitetura em camadas proporcional ao projeto    | Defini o fluxo futuro Route → Controller → Service → Repository → SQL Server. As camadas serão criadas conforme forem necessárias, sem diretórios vazios ou abstrações genéricas.                              |
-| Separação entre `app.ts` e `server.ts`            | A composição do Express ficou separada da abertura da porta, permitindo importar a aplicação em testes futuros sem iniciar o servidor automaticamente.                                                         |
-| TypeScript 5.9.3 nos dois projetos                | Solicitei uma versão estável da linha 5.x para reduzir risco. O Codex confirmou a compatibilidade declarada com `typescript-eslint@8.71.0`, cuja faixa é `>=4.8.4 <6.1.0`, e verificou tipos e builds.         |
-| ESLint e Prettier com responsabilidades distintas | Adotei lint para análise de código e Prettier para formatação, com uma configuração de formatação compartilhada na raiz.                                                                                       |
-| Dependências somente quando necessárias           | Mantive React Hook Form, Zod, `mssql` e bibliotecas de PDF para as respectivas funcionalidades. O carregamento nativo de `.env` evitou adicionar `dotenv`; `tsx` ficou restrito ao desenvolvimento do backend. |
+| Decisão                                           | Motivo e aplicação nesta etapa                                                                                                                                                                                                |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Dois projetos npm, sem workspaces                 | Optei por separar `frontend/` e `backend/`, cada um com manifesto e lockfile próprios, mantendo instalação e execução compreensíveis.                                                                                         |
+| React, TypeScript e Vite no frontend              | Mantive a stack definida para o desafio. Configurei, com auxílio do Codex, Router e Tailwind para comprovar navegação e estilos com uma interface mínima.                                                                     |
+| Node.js, TypeScript e Express no backend          | Na fundação, mantive uma aplicação HTTP pequena com `GET /health`. Na Issue #3, o Codex implementou cadastro e consulta de candidatos conforme o plano aprovado.                                                              |
+| Arquitetura em camadas proporcional ao projeto    | Defini o fluxo Route → Controller → Service → Repository → SQL Server, implementado na Issue #3 conforme a necessidade, sem abstrações genéricas.                                                                             |
+| Separação entre `app.ts` e `server.ts`            | A composição do Express ficou separada da abertura da porta, permitindo importar a aplicação nos testes sem iniciar um servidor automaticamente.                                                                              |
+| TypeScript 5.9.3 nos dois projetos                | Solicitei uma versão estável da linha 5.x para reduzir risco. O Codex confirmou a compatibilidade declarada com `typescript-eslint@8.71.0`, cuja faixa é `>=4.8.4 <6.1.0`, e verificou tipos e builds.                        |
+| ESLint e Prettier com responsabilidades distintas | Adotei lint para análise de código e Prettier para formatação, com uma configuração de formatação compartilhada na raiz.                                                                                                      |
+| Dependências somente quando necessárias           | Adiei bibliotecas até suas funcionalidades: Zod e `mssql` entraram na Issue #3; React Hook Form e PDF continuam para etapas futuras. O carregamento nativo de `.env` evitou `dotenv`; `tsx` é dependência de desenvolvimento. |
+| SQL Server 2022 via Docker Desktop                | Optei por fornecer somente o banco em container, evitando uma instalação adicional de SQL Server/SSMS no Windows. Frontend e backend continuam executados pelo npm no host.                                                   |
+| Suíte enxuta e banco de teste separado            | Mantive 12 testes locais e 2 SQL representativos. A integração usa exclusivamente `TEST_DB_*`, o banco `ResumeRegistration_test` e o login dedicado `resume_test`.                                                            |
 
-Também defini decisões de domínio e persistência que orientarão as próximas entregas:
+Também defini decisões de domínio e persistência para esta e as próximas entregas:
 
-- SQL Server local no Windows, com `mssql`, SQL parametrizado e usuário SQL dedicado, sem ORM.
-  Essa integração ainda não foi implementada.
+- SQL Server local via Docker Desktop, com `mssql`, SQL parametrizado e usuários SQL
+  dedicados, sem ORM. Essa integração foi implementada e validada na Issue #3.
 - Um único formulário e um único processo final de persistência para cadastro manual e
   cadastro auxiliado por PDF. A extração apenas sugerirá dados para revisão.
 - PDF processado em memória e descartado, com limite de `5 * 1024 * 1024` bytes.
   Decidi não criar armazenamento de arquivos ou entidade de currículo, pois não são exigidos.
 - E-mail sem unicidade, porque essa regra não faz parte do desafio. Os limites dos campos
   estão registrados em [.ai/domain.md](.ai/domain.md).
-- Backend como autoridade final da validação, com validação também no frontend para melhorar
-  a experiência. Não acrescentei autenticação, Docker ou estado global sem necessidade.
+- Backend como autoridade final da validação, com validação também prevista no frontend
+  para melhorar a experiência. Não acrescentei autenticação ou estado global; o uso de
+  Docker ficou limitado ao SQL Server local, sem Docker Compose.
+
+Na configuração manual, utilizei a imagem `mcr.microsoft.com/mssql/server:2022-latest`,
+o container `resume-registration-sql`, a porta 1433 do host encaminhada para a porta 1433
+do container e um volume Docker persistente em `/var/opt/mssql`. Criei os bancos
+`ResumeRegistration` e `ResumeRegistration_test`, com os logins SQL separados `resume_app`
+para desenvolvimento e `resume_test` para integração. Fiz o provisionamento administrativo
+com o `sqlcmd` do próprio container; não precisei de SSMS. Mantive as credenciais reais
+da aplicação somente no `backend/.env`, ignorado pelo Git, e placeholders no `.env.example`.
 
 ## 3. Uso de inteligência artificial
 
 ### Ferramentas e modelos
 
-- **ChatGPT (OpenAI) — GPT-5.6 Sol:** utilizei para planejamento, discussão arquitetural, organização
-  do trabalho, revisão de decisões e elaboração/revisão de prompts.
-- **Codex (OpenAI):** utilizei para análise e implementação assistida no repositório.
-  O ambiente da sessão identifica o agente como baseado em **GPT-6**; não há identificação
-  comprovada de variante ou versão mais específica para registrar.
+- **ChatGPT (OpenAI) — GPT-5.6 Sol:** utilizei para planejamento, explicações, revisão e
+  orientação, incluindo discussão arquitetural, organização do trabalho e revisão de prompts.
+- **Codex (OpenAI) — GPT-6 Astra com Extra High:** utilizei inicialmente na Issue #3.
+  Interrompi a execução após consumo excessivo de tokens e geração de uma suíte de 61 testes.
+- **Codex (OpenAI) — GPT-5.6 Terra High:** retomei o trabalho com esse modelo, que reduziu
+  a suíte para 14 testes representativos, conforme minha orientação, e concluiu a
+  implementação e a revisão.
 
 ### Como utilizei a IA
 
@@ -74,10 +101,12 @@ como material para análise, não como decisões definitivas. Depois da aprovaç
 o Codex para criar os fontes e configurações, executar os checks e registrar os resultados.
 Também utilizei seu auxílio para elaborar e revisar a documentação, incluindo este relato.
 
-Minha participação nesta etapa concentrou-se na definição do escopo, revisão e aprovação
-dos planos, solicitação de ajustes e verificação visual pessoal descrita na seção 5.
-A implementação dos fontes e configurações foi realizada com o Codex; não atribuo a mim
-a escrita manual desse código.
+Minha participação concentrou-se na definição de escopo, decisões técnicas, revisão,
+aprovação dos planos e solicitação de ajustes. Configurei manualmente o SQL Server/Docker
+e realizei as validações manuais descritas na seção 5, além da verificação visual do frontend.
+O código-fonte e as configurações do projeto foram produzidos pelo Codex sob minha revisão
+e aprovação; não atribuo a mim a escrita manual desse código. A configuração local dos
+bancos, logins e credenciais foi minha.
 
 ### Exemplos de prompts e aproveitamento das respostas
 
@@ -99,7 +128,8 @@ Durante o planejamento e a revisão, fiz os seguintes ajustes:
 - **TypeScript 6:** solicitei a substituição da proposta pela linha 5.x, com confirmação
   de compatibilidade antes da instalação.
 - **Contrato da API na fundação:** adiei a criação de `docs/api-contract.md` para a entrega
-  da API de candidatos, quando os contratos serão definidos antes das funcionalidades.
+  da API de candidatos. Na Issue #3, o contrato foi documentado na especificação OpenAPI
+  e disponibilizado pelo Swagger.
 - **Documentação e estrutura antecipadas:** mantive ADRs condicionados a decisões que
   realmente precisem de registro e descartei a criação de diretórios ou camadas vazias.
 - **Teste obrigatório de PORT inválida:** mantive a validação simples da variável, mas
@@ -110,6 +140,11 @@ Durante o planejamento e a revisão, fiz os seguintes ajustes:
 - **Voz deste documento:** pedi a troca do relato em terceira pessoa por uma narrativa
   minha, sem esconder a participação do Codex ou transformar código gerado com IA em
   suposta implementação manual.
+- **Suíte excessiva na Issue #3:** interrompi a execução inicial com 61 testes e solicitei
+  uma suíte proporcional ao desafio. Na retomada, o Codex a reduziu para 12 testes locais
+  e 2 SQL, preservando cenários representativos.
+- **Ambiente SQL local:** substituí a orientação inicial de instalar SQL Server e SSMS
+  no Windows pelo Docker Desktop, administrando o banco com `sqlcmd` dentro do container.
 
 Também houve uma correção técnica durante as verificações executadas pelo Codex.
 Um conflito de porta mostrou que o callback de `listen` do Express recebia o erro,
@@ -119,7 +154,7 @@ de falha e a saída com código 1. Essa correção foi pontual e não alterou a 
 
 ## 5. Verificação da solução
 
-### Verificações automatizadas
+### Verificações automatizadas da fundação
 
 Pedi ao Codex que verificasse a instalação reproduzível, a qualidade do código e os builds.
 Após a interrupção, solicitei a repetição dos checks em 30/09/2026. Os comandos estão
@@ -154,10 +189,29 @@ Além desses checks, solicitei verificações pontuais de execução. O Codex co
 
 Decidi não criar testes artificiais para o bootstrap e a resposta estática de saúde.
 Esses checks e verificações pontuais não constituem uma suíte E2E ou cobertura de testes.
-Os testes de regras de negócio, endpoints e integração serão desenvolvidos com as
-funcionalidades correspondentes.
+Naquele momento, os testes de regras de negócio, endpoints e integração ficaram para
+as funcionalidades correspondentes; a suíte da API foi adicionada e validada na Issue #3.
 
-### Verificação manual
+### Quality gate final da Issue #3
+
+Com o SQL Server e o ambiente de integração configurados, o gate final do backend foi
+executado com sucesso:
+
+| Verificação            | Resultado                    |
+| ---------------------- | ---------------------------- |
+| `npm run format:check` | Passou                       |
+| `npm run lint`         | Passou                       |
+| `npm run typecheck`    | Passou                       |
+| `npm test`             | 12/12 testes locais passaram |
+| `npm run test:db`      | 2/2 testes SQL passaram      |
+| `npm run build`        | Passou                       |
+
+Mantive a suíte propositalmente enxuta: **14 testes automatizados representativos**,
+sendo 12 locais e 2 de integração real com SQL Server. Os testes locais usam substitutos
+do repository; a validação do banco é feita pela suíte SQL separada e pelas verificações
+manuais abaixo.
+
+### Verificação manual da fundação
 
 Em **30/09/2026**, realizei pessoalmente a verificação visual do frontend no navegador,
 tanto em **modo de desenvolvimento** quanto no **preview do build**.
@@ -175,9 +229,28 @@ Não encontrei erros no console nem problemas visuais durante essa verificação
 Essa foi minha verificação manual, separada das checagens e da inspeção em Chromium
 realizadas pelo Codex.
 
+### Configuração e validação manual da Issue #3
+
+Após configurar o SQL Server no Docker Desktop, os dois bancos, os logins dedicados e
+o `.env` local, confirmei os seguintes resultados:
+
+- Executei `npm run db:setup` duas vezes com sucesso.
+- Executei `npm run db:seed`: a primeira execução retornou `Seed: inserted` e a segunda,
+  `Seed: skipped: Candidates is not empty`.
+- Executei `npm run test:db`, com 2/2 testes SQL aprovados.
+- Abri o Swagger em `/api-docs` corretamente.
+- Cadastrei um candidato via `POST /api/candidates`, com resposta 201 e header `Location`.
+- Consultei a listagem e o candidato por ID; ambos retornaram o candidato cadastrado.
+- Enviei um payload inválido e recebi 400 `VALIDATION_ERROR`.
+- Consultei um candidato inexistente e recebi 404 `CANDIDATE_NOT_FOUND`.
+- Reiniciei o backend e confirmei que o candidato continuava disponível, comprovando
+  a persistência no SQL Server.
+
+Esses resultados encerraram a pendência de validação real da integração SQL da Issue #3.
+
 ## 6. Dificuldades e limitações
 
-Durante a implementação houve uma interrupção do ambiente de desenvolvimento. Na retomada,
+Durante a implementação da fundação houve uma interrupção do ambiente de desenvolvimento. Na retomada,
 pedi uma análise somente de leitura do Git, fontes, configurações, dependências e documentação.
 Aprovei a continuação após essa inspeção, preservando o trabalho válido sem reconstrução
 ou descarte das alterações existentes.
@@ -192,11 +265,20 @@ O conflito de porta durante a troca entre desenvolvimento e execução compilada
 correção real do log de inicialização descrita na seção 4. Após encerrar o processo anterior,
 o backend compilado iniciou normalmente.
 
-A principal limitação atual é o estágio do projeto: a fundação está pronta, mas ainda não
-há cadastro ou consulta de candidatos, integração com SQL Server, processamento de PDF
-ou telas finais. As verificações desta etapa comprovam a fundação, não o funcionamento
-das funcionalidades que ainda serão implementadas. Na extração futura, já aceitei a
-limitação de heurísticas simples e ausência de OCR, mantendo o preenchimento manual como alternativa.
+Na Issue #3, interrompi a execução inicial do Codex GPT-6 Astra com Extra High pelo
+consumo excessivo de tokens e pela suíte de 61 testes. Retomei com Codex GPT-5.6 Terra High,
+com a redução e conclusão descritas acima. A falta inicial de um ambiente SQL foi
+resolvida com o provisionamento manual via Docker Desktop.
+
+Durante as conexões SQL locais, observei o warning não bloqueante
+`[DEP0123] DeprecationWarning: Setting the TLS ServerName to an IP address...`, associado
+ao uso de `127.0.0.1` com TLS. Os testes e as validações passaram; nesta tarefa documental,
+não foi feita alteração de código para ocultar esse aviso.
+
+A fundação, o cadastro e a consulta pela API e a integração com SQL Server estão
+implementados e validados. Ainda faltam processamento de PDF e telas finais.
+Na extração futura, já aceitei a limitação de heurísticas simples e ausência de OCR,
+mantendo o preenchimento manual como alternativa.
 
 ## 7. Tempo dedicado
 
@@ -209,7 +291,7 @@ O tempo dedicado será consolidado ao final do desafio.
 Consolidarei esta seção após implementar e verificar as funcionalidades principais.
 Por enquanto, não defini uma lista definitiva de melhorias adicionais.
 
-A cobertura de regras de negócio e a integração real com o banco ainda precisam ser
-verificadas nas próximas entregas; são requisitos planejados, não funcionalidades extras
-que estou acrescentando ao escopo. Ao final, registrarei as limitações observadas e as
-melhorias que considerar justificadas, com seus respectivos motivos.
+A API de candidatos e a integração real com o banco já foram verificadas na Issue #3.
+As próximas entregas terão validações próprias para extração de PDF e interface;
+essas funcionalidades continuam no escopo planejado. Ao final, registrarei as limitações
+observadas e as melhorias que considerar justificadas, com seus respectivos motivos.

@@ -10,24 +10,36 @@
     "dev": "node --env-file-if-exists=.env --watch --import tsx src/server.ts",
     "start": "node --env-file-if-exists=.env dist/server.js",
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.check.json",
+    "test": "vitest run tests/unit tests/http",
+    "test:db": "node --env-file-if-exists=.env node_modules/vitest/vitest.mjs run tests/database --hookTimeout=30000 --testTimeout=30000 --fileParallelism=false",
+    "db:setup": "node --env-file-if-exists=.env --import tsx scripts/database.ts setup",
+    "db:seed": "node --env-file-if-exists=.env --import tsx scripts/database.ts seed",
     "lint": "eslint . --max-warnings 0",
     "format": "prettier --write . --ignore-path ../.prettierignore",
     "format:check": "prettier --check . --ignore-path ../.prettierignore"
   },
   "dependencies": {
-    "express": "5.2.1"
+    "express": "5.2.1",
+    "mssql": "12.7.2",
+    "swagger-ui-express": "5.0.1",
+    "zod": "4.6.5"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
     "@types/express": "5.0.6",
+    "@types/mssql": "12.3.0",
     "@types/node": "24.19.0",
+    "@types/supertest": "7.2.1",
+    "@types/swagger-ui-express": "4.1.8",
     "eslint": "10.11.0",
     "eslint-config-prettier": "10.1.8",
     "globals": "17.12.0",
     "prettier": "3.9.9",
+    "supertest": "7.3.0",
     "tsx": "4.23.15",
     "typescript": "5.9.3",
-    "typescript-eslint": "8.71.0"
+    "typescript-eslint": "8.71.0",
+    "vitest": "5.0.3"
   }
 }
