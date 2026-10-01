@@ -8,6 +8,7 @@ import { createDatabasePool } from '../../src/config/database.js';
 import { readDatabaseConfig } from '../../src/config/env.js';
 import { createCandidateRepository } from '../../src/repositories/candidate.repository.js';
 import { createCandidateService } from '../../src/services/candidate.service.js';
+import { createResumeExtractionService } from '../../src/services/resume-extraction.service.js';
 
 let pool: sql.ConnectionPool | undefined;
 let app: ReturnType<typeof createApp>;
@@ -34,7 +35,10 @@ beforeAll(async () => {
   const schema = await readScript('01-create-candidates.sql');
   await pool.request().batch(schema);
   await pool.request().batch(schema);
-  app = createApp(createCandidateService(createCandidateRepository(pool)));
+  app = createApp(
+    createCandidateService(createCandidateRepository(pool)),
+    createResumeExtractionService(),
+  );
 });
 
 afterAll(async () => {

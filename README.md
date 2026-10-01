@@ -5,15 +5,16 @@ preenchimento manual ou auxílio da leitura de currículo em PDF.
 
 ## Estado atual
 
-A fundação e a Issue #3 estão implementadas e validadas. O backend oferece cadastro e
-consulta de candidatos, repository SQL Server, scripts de setup/seed, validação Zod,
-Swagger e testes backend. A Issue #3 aguarda apenas revisão, commit e PR.
-A interface ainda é apenas a apresentação inicial; formulários e extração de PDF ficam
-para próximas entregas. O backend precisa de SQL Server configurado para iniciar.
+A fundação, a Issue #3 e a Issue #5 estão implementadas e validadas. O backend oferece
+cadastro e consulta de candidatos, extração de sugestões de currículo PDF, repository SQL
+Server, scripts de setup/seed, validação Zod, Swagger e testes backend. As Issues #3 e #5
+aguardam revisão, commit e PR. A interface ainda é apenas a apresentação inicial; o formulário
+e o preenchimento das sugestões ficam para próximas entregas. O backend precisa de SQL Server
+configurado para iniciar.
 
 O SQL Server 2022 foi validado localmente via Docker Desktop, com bancos e logins
-separados para desenvolvimento e integração. O quality gate final passou, incluindo
-12 testes locais e 2 testes com SQL Server real, totalizando 14 testes automatizados.
+separados para desenvolvimento e integração. A extração de PDF é local, inteiramente em
+memória, sem OCR, persistência de arquivos ou alteração de SQL/schema.
 
 ## Stack e versões
 
@@ -31,6 +32,7 @@ separados para desenvolvimento e integração. O quality gate final passou, incl
 | ESLint / typescript-eslint       | 10.11.0 / 8.71.0 |
 | Prettier                         | 3.9.9            |
 | mssql / Zod                      | 12.7.2 / 4.6.5   |
+| pdfjs-dist / Multer              | 6.3.289 / 2.4.0  |
 | swagger-ui-express               | 5.0.1            |
 | Vitest / Supertest               | 5.0.3 / 7.3.0    |
 
@@ -247,13 +249,14 @@ duplicação por execuções simultâneas. Não existe regra de unicidade de e-m
 ### API e Swagger
 
 Abra <http://127.0.0.1:3000/api-docs/> após iniciar o backend. A especificação OpenAPI 3.0.3
-fica em `backend/src/docs/openapi.ts`; o Swagger permite executar os três endpoints.
+fica em `backend/src/docs/openapi.ts`; o Swagger permite executar os endpoints abaixo.
 
-| Operação                  | Sucesso                            | Erros principais |
-| ------------------------- | ---------------------------------- | ---------------- |
-| `POST /api/candidates`    | 201, candidato e header `Location` | 400, 500         |
-| `GET /api/candidates`     | 200, array (ou `[]`)               | 500              |
-| `GET /api/candidates/:id` | 200, candidato                     | 400, 404, 500    |
+| Operação                    | Sucesso                            | Erros principais        |
+| --------------------------- | ---------------------------------- | ----------------------- |
+| `POST /api/candidates`      | 201, candidato e header `Location` | 400, 500                |
+| `GET /api/candidates`       | 200, array (ou `[]`)               | 500                     |
+| `GET /api/candidates/:id`   | 200, candidato                     | 400, 404, 500           |
+| `POST /api/resumes/extract` | 200, sugestões de currículo        | 400, 413, 415, 422, 500 |
 
 O cadastro recebe `fullName` (150) e `email` válido (254), obrigatórios; `phone` (30),
 `desiredPosition` (150) e `professionalSummary` (2000) são opcionais. Texto é aparado nas
@@ -267,6 +270,31 @@ A listagem não tem paginação e ordena por `createdAt DESC, id DESC`. Erros se
 `/health` continua sendo apenas liveness. A inicialização conecta um pool SQL antes de
 abrir HTTP; o pool é reutilizado e fechado no encerramento. SQL indisponível na inicialização
 impede o servidor de iniciar; falhas durante requisições retornam erro sanitizado.
+
+### Extração de currículo PDF
+
+`POST /api/resumes/extract` recebe um único arquivo no campo multipart `file`. O upload é
+processado exclusivamente em memória, tem limite exato de 5 MiB (`5 * 1024 * 1024` bytes)
+e exige MIME `application/pdf` e a assinatura inicial `%PDF-`. Arquivos acima do limite
+retornam 413 `PAYLOAD_TOO_LARGE`; conteúdo não-PDF retorna 415 `UNSUPPORTED_FILE_TYPE`.
+O arquivo não é salvo em diretório, banco ou serviço externo.
+
+O endpoint usa `pdfjs-dist`, a distribuição oficial do Mozilla PDF.js, escolhida por suportar
+Node 24, TypeScript e ESM e por aceitar bytes em memória. Não há OCR. O texto é usado somente
+para sugestões conservadoras de `fullName`, `email` e `phone`, sempre como `string` ou `null`;
+texto bruto não é retornado e nenhum candidato é criado. E-mail precisa ser plausível e
+compatível com a regra do cadastro; telefone brasileiro é normalizado; nome é procurado nas
+linhas iniciais, ignorando títulos e contatos evidentes. Essas heurísticas não prometem
+precisão e campos não identificados retornam `null`.
+
+PDF válido sem texto utilizável retorna 422 `PDF_TEXT_UNAVAILABLE`; PDF ilegível retorna
+422 `INVALID_PDF`; a ausência do campo `file` retorna 400 `RESUME_FILE_REQUIRED`. O arquivo
+[fictício de demonstração](samples/sample-resume.pdf) contém nome, e-mail e telefone de exemplo.
+
+A validação concluída da Issue #5 registrou `npm test` com 22/22 testes aprovados e
+`npm run test:db` com 2/2. No Swagger, o PDF fictício retornou HTTP 200 com
+`Marina Ficticia da Silva`, `marina.ficticia@example.com` e `(41) 99999-1234`.
+Um arquivo `.txt` retornou HTTP 415 `UNSUPPORTED_FILE_TYPE` no formato padronizado da API.
 
 ## Qualidade e build
 
@@ -314,11 +342,13 @@ npm test
 npm run test:db
 ```
 
-`npm test` executa 12 testes unitários e HTTP com Vitest/Supertest, sem conectar ao SQL Server.
+`npm test` executa 22 testes unitários e HTTP com Vitest/Supertest, sem conectar ao SQL Server.
 Eles cobrem validação representativa, normalização de opcionais, criação e candidato ausente
 no service, os três endpoints e o isolamento da configuração `TEST_DB_*`. O repository é
-substituído nesses testes, portanto eles não representam validação do banco. `typecheck`
-também verifica testes e scripts; `build` continua emitindo somente `src/`.
+substituído nesses testes, portanto eles não representam validação do banco. Dez testes
+representativos cobrem a extração PDF: serviço, heurísticas, campos ausentes, PDF sem texto,
+sucesso HTTP no limite exato de 5 MiB, arquivo ausente, conteúdo não-PDF e excesso de tamanho.
+`typecheck` também verifica testes e scripts; `build` continua emitindo somente `src/`.
 
 `npm run test:db` é separado e **falha**, em vez de aparentar sucesso, se faltar configuração.
 Use o banco exclusivo `ResumeRegistration_test` e o login `resume_test`, provisionados
@@ -350,9 +380,8 @@ usando o container `resume-registration-sql`, os dois bancos e os logins dedicad
 - Após reiniciar o backend, o candidato continuou disponível, confirmando a persistência
   no SQL Server.
 
-O quality gate final do backend passou: `npm run format:check`, `npm run lint`,
+O quality gate da Issue #3 passou: `npm run format:check`, `npm run lint`,
 `npm run typecheck`, `npm test` (12/12), `npm run test:db` (2/2) e `npm run build`.
-A suíte foi mantida propositalmente enxuta, com 14 testes automatizados representativos.
 
 ## Estrutura e arquitetura
 
@@ -366,9 +395,9 @@ backend/
   src/app.ts        Composição HTTP e Swagger, sem conexão ao importar
   src/server.ts     Inicialização HTTP, pool e encerramento
   src/config/       Ambiente e pool SQL
-  src/routes/       Rotas de candidatos
+  src/routes/       Rotas de candidatos e currículos
   src/controllers/  Adaptação HTTP e validação na fronteira
-  src/services/     Casos de uso
+  src/services/     Casos de uso e extração PDF
   src/repositories/ SQL parametrizado
   src/validators/   Schemas Zod e tipos inferidos de entrada
   src/models/       Contrato de saída
@@ -399,7 +428,8 @@ um repository tipado pela implementação, permitindo testes sem framework de in
 interfaces adicionais. Controllers validam entradas com schemas Zod; não há middleware
 genérico de validação. A especificação OpenAPI é pequena e mantida manualmente.
 
-O PDF ainda não foi implementado; continuará restrito ao processamento em memória.
+Para PDF, a rota delega ao controller e ao serviço de extração; não há repository, entidade
+ou persistência. O currículo é descartado depois da requisição.
 
 ## Problemas comuns
 
@@ -415,6 +445,9 @@ O PDF ainda não foi implementado; continuará restrito ao processamento em mem�
 - **Tabela inexistente:** execute `db:setup` ou o script de schema no banco correto.
 - **Erro de permissão no setup:** use a conta de provisionamento; não amplie privilégios de runtime sem necessidade.
 - **Testes SQL abortados:** configure todos os `TEST_DB_*` de conexão; o banco deve existir e terminar em `_test`.
+- **PDF rejeitado:** envie um único arquivo no campo `file`, com MIME `application/pdf`, assinatura
+  inicial `%PDF-` e no máximo 5 MiB. PDFs digitalizados sem camada de texto retornam
+  `PDF_TEXT_UNAVAILABLE`, pois OCR não faz parte do projeto.
 - **Warning TLS local:** `[DEP0123] DeprecationWarning: Setting the TLS ServerName to an IP address...`
   ocorre nas conexões com `127.0.0.1` e TLS. Foi observado como não bloqueante nas validações;
   nenhuma alteração de código foi feita para ocultá-lo nesta tarefa.
@@ -425,6 +458,6 @@ Consulte [DESENVOLVIMENTO.md](DESENVOLVIMENTO.md) para decisões, participação
 ajustes solicitados pelo desenvolvedor e resultados de validação. [AGENTS.md](AGENTS.md)
 direciona para os documentos específicos de contexto.
 
-O desenvolvimento avança por Issues e planos aprovados. A Issue #3 está implementada
-e validada, aguardando apenas revisão, commit e PR autorizados pelo desenvolvedor.
-As próximas entregas tratarão da extração de PDF e da interface de cadastro e consulta.
+O desenvolvimento avança por Issues e planos aprovados. As Issues #3 e #5 estão implementadas
+e validadas, aguardando revisão, commit e PR autorizados pelo desenvolvedor. A próxima entrega
+tratará da interface de cadastro e consulta.

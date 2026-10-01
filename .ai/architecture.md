@@ -7,11 +7,13 @@
 - `GET /health` is process liveness only; it does not check a database.
 - Current frontend: `main.tsx` initializes React/Router; `App.tsx` holds bootstrap routes.
 
-Planned business request flow: Route → Controller → Service → Repository → SQL Server.
-Introduce these layers only when behavior requires them. SQL belongs in repositories.
-Services coordinate use cases; controllers translate HTTP. PDF extraction stays separate.
+Business request flow: Route → Controller → Service → Repository → SQL Server for candidates.
+PDF extraction uses Route → Controller → Resume extraction service, without a repository.
+SQL belongs in repositories. Services coordinate use cases; controllers translate HTTP.
 Use `mssql` without an ORM, SQL Server on Windows and a dedicated SQL login when introduced.
 PDF processing uses memory only and never persists the file or creates a Resume entity.
+`POST /api/resumes/extract` accepts one PDF of at most `5 * 1024 * 1024` bytes and returns
+nullable suggestions. It uses `pdfjs-dist`; no OCR is involved.
 
 No empty future layers, generic base repositories, speculative interfaces, Docker or authentication.
 Local React state, hooks and composition are sufficient for the planned application.

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../../src/app.js';
 import type { Candidate } from '../../src/models/candidate.js';
 import { createCandidateService } from '../../src/services/candidate.service.js';
+import { createResumeExtractionService } from '../../src/services/resume-extraction.service.js';
 
 const candidate: Candidate = {
   id: 1,
@@ -14,7 +15,7 @@ const candidate: Candidate = {
   createdAt: '2026-09-30T12:00:00.000Z',
 };
 const repository = { create: vi.fn(), findAll: vi.fn(), findById: vi.fn() };
-const app = createApp(createCandidateService(repository));
+const app = createApp(createCandidateService(repository), createResumeExtractionService());
 
 beforeEach(() => {
   vi.resetAllMocks();

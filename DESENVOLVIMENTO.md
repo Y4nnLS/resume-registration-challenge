@@ -25,9 +25,9 @@ A publicação depende da minha autorização. Na revisão da fundação, ainda 
 commit, push, abertura de PR ou merge das alterações da Issue #1; o PR dessa entrega
 foi posteriormente identificado como #2.
 
-Este documento acompanha o projeto em andamento. A fundação e a API de candidatos com
-persistência SQL estão implementadas e validadas; extração de PDF e interface de cadastro
-e consulta ficam para as próximas Issues.
+Este documento acompanha o projeto em andamento. A fundação, a API de candidatos com
+persistência SQL e a extração de sugestões de currículo PDF estão implementadas. A interface
+de cadastro e consulta fica para as próximas Issues.
 
 Na Issue #3, iniciei a API de candidatos e a persistência na branch `feat/candidate-api`.
 Corrigi a referência inicial à Issue #2, que corresponde ao PR da fundação, e aprovei
@@ -40,6 +40,15 @@ ficou pendente por falta do banco de teste e de `TEST_DB_*`. Depois, configurei 
 o SQL Server via Docker Desktop, os bancos e os logins, e realizei as validações manuais
 descritas na seção 5. O quality gate final passou, incluindo os 14 testes automatizados.
 A Issue #3 está implementada e validada, aguardando apenas revisão, commit e PR.
+
+Na Issue #5, aprovei um plano restrito ao backend para receber um currículo PDF e retornar
+sugestões editáveis de nome, e-mail e telefone, sem cadastrar candidatos. Solicitei leitura
+em memória, limite exato de 5 MiB, ausência de OCR, sem banco ou filesystem e no máximo dez
+testes novos. Antes da instalação, o Codex confirmou as versões estáveis compatíveis com o
+Node 24 e TypeScript/ESM do projeto: `pdfjs-dist@6.3.289`, `multer@2.4.0` e
+`@types/multer@2.3.0`. O Codex implementou o endpoint, o PDF fictício e dez testes focados;
+o quality gate passou, com 22 testes locais e 2 SQL. Também concluí a validação manual pelo
+Swagger com o PDF fictício e com um arquivo inválido, conforme registrado na seção 5.
 
 ## 2. Principais decisões técnicas
 
@@ -55,6 +64,7 @@ A Issue #3 está implementada e validada, aguardando apenas revisão, commit e P
 | Dependências somente quando necessárias           | Adiei bibliotecas até suas funcionalidades: Zod e `mssql` entraram na Issue #3; React Hook Form e PDF continuam para etapas futuras. O carregamento nativo de `.env` evitou `dotenv`; `tsx` é dependência de desenvolvimento. |
 | SQL Server 2022 via Docker Desktop                | Optei por fornecer somente o banco em container, evitando uma instalação adicional de SQL Server/SSMS no Windows. Frontend e backend continuam executados pelo npm no host.                                                   |
 | Suíte enxuta e banco de teste separado            | Mantive 12 testes locais e 2 SQL representativos. A integração usa exclusivamente `TEST_DB_*`, o banco `ResumeRegistration_test` e o login dedicado `resume_test`.                                                            |
+| Extração PDF em memória                           | Na Issue #5, aprovei `pdfjs-dist` para texto de PDF e Multer somente para multipart em memória. O endpoint não persiste arquivos, não usa OCR e não altera SQL/schema.                                                        |
 
 Também defini decisões de domínio e persistência para esta e as próximas entregas:
 
@@ -69,6 +79,10 @@ Também defini decisões de domínio e persistência para esta e as próximas en
 - Backend como autoridade final da validação, com validação também prevista no frontend
   para melhorar a experiência. Não acrescentei autenticação ou estado global; o uso de
   Docker ficou limitado ao SQL Server local, sem Docker Compose.
+- A extração de PDF retorna somente sugestões nulas ou textuais de nome, e-mail e telefone.
+  Adotei heurísticas simples e conservadoras: e-mail plausível, telefone brasileiro normalizado
+  e nome nas linhas iniciais, sem inventar campos. O PDF sem texto utilizável retorna 422 e
+  não afeta o caminho de cadastro manual.
 
 Na configuração manual, utilizei a imagem `mcr.microsoft.com/mssql/server:2022-latest`,
 o container `resume-registration-sql`, a porta 1433 do host encaminhada para a porta 1433
@@ -107,6 +121,11 @@ e realizei as validações manuais descritas na seção 5, além da verificaçã
 O código-fonte e as configurações do projeto foram produzidos pelo Codex sob minha revisão
 e aprovação; não atribuo a mim a escrita manual desse código. A configuração local dos
 bancos, logins e credenciais foi minha.
+
+Na Issue #5, utilizei o Codex para verificar a compatibilidade pública das dependências,
+implementar a rota, o serviço, a documentação e os testes após minha aprovação do plano.
+Defini o escopo, aprovei a biblioteca e o contrato, determinei o teto de dez testes e revisei
+as decisões de processamento em memória, validação de assinatura e limites de tamanho.
 
 ### Exemplos de prompts e aproveitamento das respostas
 
@@ -211,6 +230,22 @@ sendo 12 locais e 2 de integração real com SQL Server. Os testes locais usam s
 do repository; a validação do banco é feita pela suíte SQL separada e pelas verificações
 manuais abaixo.
 
+### Verificações automatizadas da Issue #5
+
+O Codex executou `npm run typecheck`, que passou, e `npm test`, com **22/22 testes locais**
+aprovados: os 12 existentes e 10 novos da extração PDF. Esses novos testes cobrem o PDF
+fictício, e-mail, telefone, nome, campos ausentes, PDF sem texto, endpoint, limite exato de
+5 MiB, conteúdo não-PDF e arquivo acima do limite. `npm run format:check`, `npm run lint`,
+`npm run test:db` (2/2) e `npm run build` também passaram.
+
+Na validação manual, enviei `samples/sample-resume.pdf` pelo Swagger e recebi HTTP 200 com
+`Marina Ficticia da Silva`, `marina.ficticia@example.com` e `(41) 99999-1234`. A revisão
+posterior conferiu o conteúdo do PDF, o texto extraído pelo PDF.js e a resposta HTTP da
+instância em execução; os três confirmaram o número de cinco dígitos antes do hífen. O registro
+manual inicial com quatro dígitos foi uma divergência de anotação, não um defeito da extração.
+Também enviei um arquivo `.txt` e recebi HTTP 415 `UNSUPPORTED_FILE_TYPE` no formato de erro
+padronizado da API.
+
 ### Verificação manual da fundação
 
 Em **30/09/2026**, realizei pessoalmente a verificação visual do frontend no navegador,
@@ -275,10 +310,10 @@ Durante as conexões SQL locais, observei o warning não bloqueante
 ao uso de `127.0.0.1` com TLS. Os testes e as validações passaram; nesta tarefa documental,
 não foi feita alteração de código para ocultar esse aviso.
 
-A fundação, o cadastro e a consulta pela API e a integração com SQL Server estão
-implementados e validados. Ainda faltam processamento de PDF e telas finais.
-Na extração futura, já aceitei a limitação de heurísticas simples e ausência de OCR,
-mantendo o preenchimento manual como alternativa.
+A fundação, o cadastro e a consulta pela API, a integração com SQL Server e a extração PDF
+estão implementados. A extração permanece limitada a PDF com camada textual: não há OCR e
+as heurísticas não prometem reconhecer todos os formatos. Ainda faltam telas finais; o
+preenchimento manual permanece como alternativa.
 
 ## 7. Tempo dedicado
 
@@ -292,6 +327,6 @@ Consolidarei esta seção após implementar e verificar as funcionalidades princ
 Por enquanto, não defini uma lista definitiva de melhorias adicionais.
 
 A API de candidatos e a integração real com o banco já foram verificadas na Issue #3.
-As próximas entregas terão validações próprias para extração de PDF e interface;
-essas funcionalidades continuam no escopo planejado. Ao final, registrarei as limitações
-observadas e as melhorias que considerar justificadas, com seus respectivos motivos.
+A extração PDF foi validada automaticamente e manualmente. As próximas entregas terão
+validações próprias para a interface. Ao final, registrarei as limitações observadas e as
+melhorias que considerar justificadas, com seus respectivos motivos.
