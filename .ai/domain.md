@@ -1,6 +1,6 @@
 # Approved domain rules
 
-The current foundation does not implement candidate features. Preserve these rules for later Issues:
+Preserve these implemented candidate and PDF rules:
 
 | Field               | Required          | Maximum length |
 | ------------------- | ----------------- | -------------- |
@@ -17,5 +17,9 @@ The current foundation does not implement candidate features. Preserve these rul
 - PDF upload is optional; maximum size is `5 * 1024 * 1024` bytes.
 - Validate content as well as declared file information. Never trust filenames alone.
 - Read PDF in memory and discard it. No file paths, uploads directory or Resume entity.
-- Choose the PDF library in its own Issue; no external AI extraction service or OCR is planned.
-- REST contracts will be agreed when starting the candidate API, not during foundation.
+- `POST /api/resumes/extract` accepts one multipart `file` and returns nullable `fullName`,
+  `email` and `phone` suggestions; it does not create a candidate.
+- Validate the MIME as `application/pdf` and the initial `%PDF-` signature. Files above the
+  exact 5 MiB limit return 413; non-PDF content returns 415; valid PDFs without usable text
+  return 422 `PDF_TEXT_UNAVAILABLE`.
+- `pdfjs-dist` extracts text in memory. No external AI extraction service or OCR is planned.

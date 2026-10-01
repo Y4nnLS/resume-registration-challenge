@@ -3,13 +3,17 @@ import { createDatabasePool } from './config/database.js';
 import { readDatabaseConfig, readPort } from './config/env.js';
 import { createCandidateRepository } from './repositories/candidate.repository.js';
 import { createCandidateService } from './services/candidate.service.js';
+import { createResumeExtractionService } from './services/resume-extraction.service.js';
 
 async function startServer() {
   const port = readPort();
   const pool = createDatabasePool(readDatabaseConfig());
   try {
     await pool.connect();
-    const app = createApp(createCandidateService(createCandidateRepository(pool)));
+    const app = createApp(
+      createCandidateService(createCandidateRepository(pool)),
+      createResumeExtractionService(),
+    );
     const server = app.listen(port, '127.0.0.1', (error) => {
       if (!error) console.info(`Backend listening at http://127.0.0.1:${port}`);
     });

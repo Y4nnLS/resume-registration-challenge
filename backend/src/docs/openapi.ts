@@ -83,6 +83,47 @@ export const openApiDocument = {
         },
       },
     },
+    '/api/resumes/extract': {
+      post: {
+        summary: 'Extrair sugestões de um currículo PDF',
+        operationId: 'extractResume',
+        description:
+          'Processa um único PDF em memória, sem persistir o arquivo ou criar candidatos. Não há OCR; campos sem sugestão retornam null.',
+        requestBody: {
+          required: true,
+          content: {
+            'multipart/form-data': {
+              schema: {
+                type: 'object',
+                required: ['file'],
+                properties: {
+                  file: {
+                    type: 'string',
+                    format: 'binary',
+                    description: 'PDF de até 5 MiB (5 * 1024 * 1024 bytes).',
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Sugestões extraídas do PDF.',
+            content: {
+              'application/json': { schema: { $ref: '#/components/schemas/ResumeExtraction' } },
+            },
+          },
+          '400': errorResponse('Arquivo obrigatório ausente ou upload inválido.'),
+          '413': errorResponse('Arquivo maior que 5 MiB (PAYLOAD_TOO_LARGE).'),
+          '415': errorResponse('Mídia ou conteúdo diferente de PDF.'),
+          '422': errorResponse(
+            'PDF ilegível (INVALID_PDF) ou sem texto utilizável (PDF_TEXT_UNAVAILABLE).',
+          ),
+          '500': errorResponse('Falha interna (INTERNAL_ERROR).'),
+        },
+      },
+    },
   },
   components: {
     schemas: {
@@ -108,6 +149,16 @@ export const openApiDocument = {
           ...candidateInputProperties,
           id: { type: 'integer', format: 'int32', minimum: 1 },
           createdAt: { type: 'string', format: 'date-time', example: '2026-09-30T12:00:00.000Z' },
+        },
+      },
+      ResumeExtraction: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['fullName', 'email', 'phone'],
+        properties: {
+          fullName: { type: 'string', nullable: true, maxLength: 150 },
+          email: { type: 'string', nullable: true, format: 'email', maxLength: 254 },
+          phone: { type: 'string', nullable: true, maxLength: 30 },
         },
       },
       ApiError: {
