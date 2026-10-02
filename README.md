@@ -5,12 +5,13 @@ preenchimento manual ou auxílio da leitura de currículo em PDF.
 
 ## Estado atual
 
-A fundação, a Issue #3 e a Issue #5 estão implementadas e validadas. O backend oferece
-cadastro e consulta de candidatos, extração de sugestões de currículo PDF, repository SQL
-Server, scripts de setup/seed, validação Zod, Swagger e testes backend. As Issues #3 e #5
-aguardam revisão, commit e PR. A interface ainda é apenas a apresentação inicial; o formulário
-e o preenchimento das sugestões ficam para próximas entregas. O backend precisa de SQL Server
-configurado para iniciar.
+A fundação e as Issues #3, #5 e #7 estão implementadas. O backend oferece cadastro e
+consulta de candidatos, extração de sugestões de currículo PDF, repository SQL Server, scripts
+de setup/seed, validação Zod, Swagger e testes backend. O frontend oferece cadastro manual e
+assistido por PDF, confirmação explícita, listagem e detalhe de candidatos. As validações
+automatizadas e manuais da Issue #7 foram concluídas com sucesso. As Issues implementadas
+aguardam revisão, commit e PR. O backend
+precisa de SQL Server configurado para iniciar.
 
 O SQL Server 2022 foi validado localmente via Docker Desktop, com bancos e logins
 separados para desenvolvimento e integração. A extração de PDF é local, inteiramente em
@@ -18,23 +19,24 @@ memória, sem OCR, persistência de arquivos ou alteração de SQL/schema.
 
 ## Stack e versões
 
-| Tecnologia                       | Versão           |
-| -------------------------------- | ---------------- |
-| Node.js usado na validação       | 24.19.0          |
-| npm usado na validação           | 10.2.0           |
-| TypeScript — frontend e backend  | 5.9.3            |
-| React / React DOM                | 19.3.0           |
-| Vite / plugin React              | 8.3.1 / 6.1.1    |
-| React Router                     | 8.4.0            |
-| Tailwind CSS / plugin Vite       | 4.3.3            |
-| Express                          | 5.2.1            |
-| tsx — desenvolvimento do backend | 4.23.15          |
-| ESLint / typescript-eslint       | 10.11.0 / 8.71.0 |
-| Prettier                         | 3.9.9            |
-| mssql / Zod                      | 12.7.2 / 4.6.5   |
-| pdfjs-dist / Multer              | 6.3.289 / 2.4.0  |
-| swagger-ui-express               | 5.0.1            |
-| Vitest / Supertest               | 5.0.3 / 7.3.0    |
+| Tecnologia                           | Versão                 |
+| ------------------------------------ | ---------------------- |
+| Node.js usado na validação           | 24.19.0                |
+| npm usado na validação               | 10.2.0                 |
+| TypeScript — frontend e backend      | 5.9.3                  |
+| React / React DOM                    | 19.3.0                 |
+| Vite / plugin React                  | 8.3.1 / 6.1.1          |
+| React Router                         | 8.4.0                  |
+| React Hook Form / resolvers / Zod    | 7.89.0 / 5.9.1 / 4.6.5 |
+| Tailwind CSS / plugin Vite           | 4.3.3                  |
+| Express                              | 5.2.1                  |
+| tsx — desenvolvimento do backend     | 4.23.15                |
+| ESLint / typescript-eslint           | 10.11.0 / 8.71.0       |
+| Prettier                             | 3.9.9                  |
+| mssql / Zod                          | 12.7.2 / 4.6.5         |
+| pdfjs-dist / Multer                  | 6.3.289 / 2.4.0        |
+| swagger-ui-express                   | 5.0.1                  |
+| Vitest / Testing Library / Supertest | 5.0.3 / 16.3.3 / 7.3.0 |
 
 Dependências diretas são fixadas nos respectivos `package.json`; cada aplicação possui
 seu próprio `package-lock.json`. O TypeScript 5.9.3 foi escolhido dentro da faixa
@@ -89,7 +91,10 @@ O backend responde em <http://127.0.0.1:3000/health>:
 ```
 
 Essa resposta indica somente que o servidor HTTP está ativo; não verifica banco ou
-qualquer serviço externo. Para consultar pelo PowerShell:
+qualquer serviço externo. O script de desenvolvimento observa somente `backend/src`. Esse
+limite foi adotado após a validação manual identificar que eventos do worker do `pdfjs-dist` em
+`node_modules` reiniciavam indevidamente o backend durante a primeira extração; não era uma
+falha do proxy nem do frontend. Para consultar pelo PowerShell:
 
 ```powershell
 Invoke-RestMethod -Uri http://127.0.0.1:3000/health
@@ -102,7 +107,9 @@ cd frontend
 npm run dev
 ```
 
-Abra <http://127.0.0.1:5173>. Os dois servidores escutam somente no endereço local.
+Abra <http://127.0.0.1:5173>. Durante o desenvolvimento, o Vite encaminha chamadas
+relativas a `/api` para `http://127.0.0.1:3000`; frontend e backend continuam como
+processos npm independentes no host. Os dois servidores escutam somente no endereço local.
 Encerre cada processo com `Ctrl+C`.
 
 ### SQL Server local via Docker
@@ -227,7 +234,8 @@ no `backend/.env`, ignorado pelo Git; `.env.example` mantém placeholders.
 | `DB_TRUST_SERVER_CERTIFICATE` | Padrão `false`; o exemplo usa `true` somente para certificado autossinado local. |
 
 Não altere as configurações globais do sistema. Não versionar `.env`, senhas ou dados pessoais.
-O frontend ainda não faz chamadas à API. Não há dependência de `dotenv`: o Node carrega o ambiente.
+O frontend usa chamadas relativas a `/api` pelo client explícito e pelo proxy local do Vite.
+Não há dependência de `dotenv`: o Node carrega o ambiente.
 
 ### Schema e seed
 
@@ -308,7 +316,8 @@ npm run build
 ```
 
 Para aplicar a formatação, use `npm run format`. ESLint verifica o código e Prettier
-padroniza a formatação; a configuração de Prettier é compartilhada na raiz.
+padroniza a formatação; a configuração de Prettier é compartilhada na raiz. No frontend,
+`npm test` executa dez testes focados nos fluxos de cadastro, PDF, lista e detalhe.
 
 Após o build do backend, execute dentro de `backend/`:
 
@@ -329,9 +338,17 @@ na mesma porta. Os builds são gerados em `dist/` de cada projeto.
 ### Verificação funcional básica
 
 - Consultar `/health` e confirmar HTTP 200 com `status: ok`.
-- Abrir a página inicial, conferir legibilidade e estilos, inclusive em largura móvel.
+- Abrir a página inicial, o cadastro, a lista e o detalhe em largura desktop e móvel.
+- Cadastrar manualmente, revisar antes de confirmar e conferir o redirecionamento ao detalhe.
+- Enviar o PDF fictício, editar as sugestões e confirmar que uma falha de extração mantém o formulário.
 - Acessar um endereço inexistente, como `/nao-existe`, e usar “Voltar ao início”.
 - Conferir ausência de erros no console do navegador.
+
+A validação manual da Issue #7 foi concluída com sucesso: navegação, cadastro manual,
+confirmação e retorno à edição, lista, detalhe, rota 404, fluxo com PDF, preservação de e-mail
+digitado, tratamento de PDF inválido e continuidade após falha foram verificados. Também foram
+confirmados responsividade em largura mobile, foco visível por teclado e ausência de erros
+inesperados no console.
 
 ### Testes backend
 
