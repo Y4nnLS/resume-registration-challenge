@@ -12,7 +12,9 @@ Preserve these implemented candidate and PDF rules:
 
 - Email uniqueness is not required; duplicate emails are allowed.
 - Manual and PDF-assisted registration use one form and one final persistence endpoint.
-- PDF extraction suggests name, email and phone; the user reviews before saving.
+- PDF extraction suggests name, email and phone; the user reviews before saving. A suggestion
+  fills a frontend field only when it is empty; non-null suggestions never overwrite text already
+  entered by the user, and null suggestions leave the field unchanged.
 - Missing or unreadable PDF information never prevents manual registration.
 - PDF upload is optional; maximum size is `5 * 1024 * 1024` bytes.
 - Validate content as well as declared file information. Never trust filenames alone.

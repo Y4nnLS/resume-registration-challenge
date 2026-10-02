@@ -65,6 +65,7 @@ Swagger com o PDF fictício e com um arquivo inválido, conforme registrado na s
 | SQL Server 2022 via Docker Desktop                | Optei por fornecer somente o banco em container, evitando uma instalação adicional de SQL Server/SSMS no Windows. Frontend e backend continuam executados pelo npm no host.                                                   |
 | Suíte enxuta e banco de teste separado            | Mantive 12 testes locais e 2 SQL representativos. A integração usa exclusivamente `TEST_DB_*`, o banco `ResumeRegistration_test` e o login dedicado `resume_test`.                                                            |
 | Extração PDF em memória                           | Na Issue #5, aprovei `pdfjs-dist` para texto de PDF e Multer somente para multipart em memória. O endpoint não persiste arquivos, não usa OCR e não altera SQL/schema.                                                        |
+| Formulário único com sugestões não destrutivas    | Na Issue #7, aprovei React Hook Form, Zod e um client `fetch` explícito. Sugestões de PDF só preenchem campos vazios; valores digitados são preservados, e a persistência exige confirmação explícita.                        |
 
 Também defini decisões de domínio e persistência para esta e as próximas entregas:
 
@@ -283,6 +284,38 @@ o `.env` local, confirmei os seguintes resultados:
 
 Esses resultados encerraram a pendência de validação real da integração SQL da Issue #3.
 
+### Implementação automatizada da Issue #7
+
+Aprovei o plano para a interface React com o mesmo formulário para cadastro manual e assistido
+por PDF. Mantive o client HTTP pequeno, estado local e o proxy do Vite para `/api`, sem Redux,
+React Query, persistência local ou alteração do backend. Determinei que uma sugestão do PDF
+somente poderia preencher um campo vazio; ela não pode sobrescrever silenciosamente nome,
+e-mail ou telefone já digitados.
+
+O Codex implementou as páginas de início, cadastro, lista e detalhe, os componentes
+`AppLayout`, `CandidateForm` e `CandidateConfirmation`, o client HTTP e os dez testes
+aprovados. Minha participação nesta etapa foi definir o escopo, aprovar o plano e as
+dependências, exigir a preservação dos dados digitados e revisar as decisões. Não afirmo que
+escrevi manualmente o código produzido pelo Codex.
+
+As verificações automatizadas do frontend concluídas pelo Codex foram `npm run format:check`,
+`npm run lint`, `npm run typecheck`, `npm test` e `npm run build`; os **10/10 testes**
+aprovaram. Também foram repetidos os gates do backend, com 22/22 testes locais, 2/2 testes SQL
+e build aprovados.
+
+Concluí pessoalmente a validação manual da interface: home e navegação, validação local,
+confirmação explícita, retorno para edição preservando dados, criação manual e assistida por PDF
+com HTTP 201 e detalhe, lista, detalhe, rota 404, responsividade mobile, foco por Tab e console.
+Confirmei que sugestões preenchem somente campos vazios, preservam o e-mail digitado, continuam
+editáveis e que um PDF inválido renomeado como `.pdf` retorna 415
+`UNSUPPORTED_FILE_TYPE` sem bloquear o cadastro manual.
+
+Durante essa validação, a primeira extração recebia 502 porque `node --watch` observava o
+worker do `pdfjs-dist` em `node_modules` e reiniciava o backend, interrompendo a requisição.
+Não era falha do proxy ou do frontend. O Codex corrigiu somente o script `dev`, restringindo o
+watch com `--watch-path=src`. Após iniciar o backend do zero, a primeira extração retornou 200
+sem reinício indevido.
+
 ## 6. Dificuldades e limitações
 
 Durante a implementação da fundação houve uma interrupção do ambiente de desenvolvimento. Na retomada,
@@ -310,10 +343,10 @@ Durante as conexões SQL locais, observei o warning não bloqueante
 ao uso de `127.0.0.1` com TLS. Os testes e as validações passaram; nesta tarefa documental,
 não foi feita alteração de código para ocultar esse aviso.
 
-A fundação, o cadastro e a consulta pela API, a integração com SQL Server e a extração PDF
-estão implementados. A extração permanece limitada a PDF com camada textual: não há OCR e
-as heurísticas não prometem reconhecer todos os formatos. Ainda faltam telas finais; o
-preenchimento manual permanece como alternativa.
+A fundação, o cadastro e a consulta pela API, a integração com SQL Server, a extração PDF e
+as telas de cadastro, lista e detalhe estão implementados. A extração permanece limitada a PDF
+com camada textual: não há OCR e as heurísticas não prometem reconhecer todos os formatos. A
+validação manual da interface foi concluída com sucesso.
 
 ## 7. Tempo dedicado
 
