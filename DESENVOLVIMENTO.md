@@ -316,6 +316,34 @@ Não era falha do proxy ou do frontend. O Codex corrigiu somente o script `dev`,
 watch com `--watch-path=src`. Após iniciar o backend do zero, a primeira extração retornou 200
 sem reinício indevido.
 
+### Revisão de qualidade e integração da Issue #9
+
+O Codex revisou os manifests, os contratos frontend/backend, os schemas, os testes, a
+configuração SQL, o README e a higiene do repositório. Não foram adicionados testes nem
+funcionalidades. A revisão confirmou o uso exclusivo de `TEST_DB_*` na suíte SQL, a proteção
+contra escrita no banco de desenvolvimento, o processamento do PDF em memória, o limite exato
+de 5 MiB e a ausência de persistência do arquivo.
+
+Foi encontrada uma inconsistência concreta: as entradas diretas de `multer`,
+`pdfjs-dist` e `@types/multer` usavam intervalos com `^`, embora a documentação e as
+convenções definam versões fixas. O Codex fixou somente `2.4.0`, `6.3.289` e `2.3.0`,
+respectivamente, e sincronizou apenas os metadados correspondentes no lockfile, sem atualizar
+dependências.
+
+O Codex executou os gates completos: frontend com format, lint, typecheck, build e **10/10**
+testes; backend com os mesmos gates, **22/22** testes locais e **2/2** SQL. O warning TLS
+`DEP0123` ao conectar em `127.0.0.1` permaneceu não bloqueante e conhecido.
+
+Concluí pessoalmente o smoke/regressão final com SQL Server, backend e frontend. Validei
+cadastro manual, confirmação antes da persistência, retorno para edição preservando dados e
+acesso do candidato criado pela lista e pelo detalhe. Também validei o fluxo assistido por PDF:
+sugestões preservaram valores manuais, continuaram editáveis e um PDF inválido foi rejeitado sem
+inutilizar o formulário. Lista, detalhe, rota não encontrada, responsividade mobile e navegação
+por teclado funcionaram; Console e Network não apresentaram erros inesperados.
+
+Após reiniciar o backend, a primeira extração de PDF retornou HTTP 200 e o processo não reiniciou
+por eventos de `pdfjs-dist`, confirmando a correção do watcher nesta regressão final.
+
 ## 6. Dificuldades e limitações
 
 Durante a implementação da fundação houve uma interrupção do ambiente de desenvolvimento. Na retomada,

@@ -39,8 +39,10 @@ memória, sem OCR, persistência de arquivos ou alteração de SQL/schema.
 | Vitest / Testing Library / Supertest | 5.0.3 / 16.3.3 / 7.3.0 |
 
 Dependências diretas são fixadas nos respectivos `package.json`; cada aplicação possui
-seu próprio `package-lock.json`. O TypeScript 5.9.3 foi escolhido dentro da faixa
-de compatibilidade declarada pelo typescript-eslint, atendendo à decisão de manter 5.x.
+seu próprio `package-lock.json`. Na revisão final, `multer@2.4.0`,
+`pdfjs-dist@6.3.289` e `@types/multer@2.3.0` foram mantidos com versões exatas no
+backend. O TypeScript 5.9.3 foi escolhido dentro da faixa de compatibilidade declarada
+pelo typescript-eslint, atendendo à decisão de manter 5.x.
 
 ## Pré-requisitos
 
@@ -317,7 +319,9 @@ npm run build
 
 Para aplicar a formatação, use `npm run format`. ESLint verifica o código e Prettier
 padroniza a formatação; a configuração de Prettier é compartilhada na raiz. No frontend,
-`npm test` executa dez testes focados nos fluxos de cadastro, PDF, lista e detalhe.
+`npm test` executa dez testes focados nos fluxos de cadastro, PDF, lista e detalhe. Na
+revisão de qualidade da Issue #9, os gates de ambos os projetos passaram: 10 testes no
+frontend, 22 locais no backend e 2 de integração SQL.
 
 Após o build do backend, execute dentro de `backend/`:
 
