@@ -1,21 +1,35 @@
 # Cadastro de candidatos — desafio técnico CIEE/PR
 
-Aplicação full-stack em desenvolvimento para cadastro e consulta de candidatos, com
-preenchimento manual ou auxílio da leitura de currículo em PDF.
+Aplicação full-stack finalizada para cadastro e consulta de candidatos, com preenchimento
+manual ou auxílio da leitura de currículo em PDF.
 
 ## Estado atual
 
-A fundação e as Issues #3, #5 e #7 estão implementadas. O backend oferece cadastro e
-consulta de candidatos, extração de sugestões de currículo PDF, repository SQL Server, scripts
-de setup/seed, validação Zod, Swagger e testes backend. O frontend oferece cadastro manual e
-assistido por PDF, confirmação explícita, listagem e detalhe de candidatos. As validações
-automatizadas e manuais da Issue #7 foram concluídas com sucesso. As Issues implementadas
-aguardam revisão, commit e PR. O backend
-precisa de SQL Server configurado para iniciar.
+As entregas de fundação, API e SQL Server, extração de PDF, frontend e revisão de qualidade
+foram implementadas, validadas e integradas à `main`. O backend oferece cadastro e consulta de
+candidatos, extração de sugestões de currículo PDF, repository SQL Server, scripts de setup/seed,
+validação Zod, Swagger e testes. O frontend oferece cadastro manual e assistido por PDF,
+confirmação explícita, listagem, detalhe e tratamento de rota inexistente.
 
-O SQL Server 2022 foi validado localmente via Docker Desktop, com bancos e logins
-separados para desenvolvimento e integração. A extração de PDF é local, inteiramente em
-memória, sem OCR, persistência de arquivos ou alteração de SQL/schema.
+O SQL Server é o banco obrigatório da aplicação e também é necessário para os testes de
+integração SQL. O ambiente local validado usa Docker Desktop, com bancos e logins separados
+para desenvolvimento e integração. A extração de PDF é local, inteiramente em memória, sem
+persistência de arquivos ou alteração de SQL/schema.
+
+## Funcionalidades e interface
+
+- Cadastro manual de candidato.
+- Cadastro assistido por currículo PDF no mesmo formulário.
+- Revisão e edição dos dados antes da persistência, com confirmação explícita antes de salvar.
+- Lista e detalhe de candidatos.
+- Tratamento de rota inexistente.
+
+| Rota | Finalidade |
+| --- | --- |
+| `/` | Página inicial. |
+| `/candidates/new` | Cadastro manual ou assistido por PDF. |
+| `/candidates` | Lista de candidatos. |
+| `/candidates/:id` | Detalhe de um candidato. |
 
 ## Stack e versões
 
@@ -49,7 +63,8 @@ pelo typescript-eslint, atendendo à decisão de manter 5.x.
 - Node.js 24.19.0 ou atualização posterior da linha 24.x, com npm.
 - Git e um navegador atualizado.
 - Docker Desktop instalado e em execução, configurado para containers Linux, com a porta
-  local 1433 disponível para o SQL Server 2022.
+  local 1433 disponível para o SQL Server 2022. O SQL Server é obrigatório para o backend e
+  para `npm run test:db`.
 - VS Code é recomendado, mas não obrigatório.
 
 O ambiente principal é Windows, com comandos em PowerShell. Docker fornece somente o
@@ -93,10 +108,10 @@ O backend responde em <http://127.0.0.1:3000/health>:
 ```
 
 Essa resposta indica somente que o servidor HTTP está ativo; não verifica banco ou
-qualquer serviço externo. O script de desenvolvimento observa somente `backend/src`. Esse
-limite foi adotado após a validação manual identificar que eventos do worker do `pdfjs-dist` em
-`node_modules` reiniciavam indevidamente o backend durante a primeira extração; não era uma
-falha do proxy nem do frontend. Para consultar pelo PowerShell:
+qualquer serviço externo. O modo de desenvolvimento executa o backend TypeScript localmente
+sem file watcher. Essa decisão evita reinícios durante o carregamento de dependências observados
+no ambiente do desafio; após alterar código do backend, reinicie o processo manualmente. Para
+consultar pelo PowerShell:
 
 ```powershell
 Invoke-RestMethod -Uri http://127.0.0.1:3000/health
@@ -220,6 +235,7 @@ com a senha desse login. Descomente todas as variáveis `TEST_DB_*` do exemplo e
 o mesmo host/porta, `TEST_DB_NAME=ResumeRegistration_test`, `TEST_DB_USER=resume_test` e
 `TEST_DB_PASSWORD` com a senha de integração. Neste ambiente local, mantenha
 `DB_ENCRYPT=true`, `DB_TRUST_SERVER_CERTIFICATE=true` e os equivalentes `TEST_DB_*`.
+`TEST_DB_*` nunca deve apontar para o banco de desenvolvimento.
 
 `PORT` aceita um inteiro entre 1 e 65535 e usa 3000 por padrão. Os scripts `dev`, `start`,
 `db:setup`, `db:seed` e `test:db` carregam `.env` pelo recurso nativo do Node.js; variáveis
@@ -290,16 +306,19 @@ retornam 413 `PAYLOAD_TOO_LARGE`; conteúdo não-PDF retorna 415 `UNSUPPORTED_FI
 O arquivo não é salvo em diretório, banco ou serviço externo.
 
 O endpoint usa `pdfjs-dist`, a distribuição oficial do Mozilla PDF.js, escolhida por suportar
-Node 24, TypeScript e ESM e por aceitar bytes em memória. Não há OCR. O texto é usado somente
-para sugestões conservadoras de `fullName`, `email` e `phone`, sempre como `string` ou `null`;
-texto bruto não é retornado e nenhum candidato é criado. E-mail precisa ser plausível e
-compatível com a regra do cadastro; telefone brasileiro é normalizado; nome é procurado nas
-linhas iniciais, ignorando títulos e contatos evidentes. Essas heurísticas não prometem
-precisão e campos não identificados retornam `null`.
+Node 24, TypeScript e ESM e por aceitar bytes em memória. Não há OCR nem uso de IA/LLM na
+extração. O texto é usado somente para sugestões conservadoras de `fullName`, `email` e
+`phone`, sempre como `string` ou `null`; texto bruto não é retornado e nenhum candidato é
+criado. E-mail precisa ser plausível e compatível com a regra do cadastro; telefone brasileiro
+é normalizado; nome é procurado nas linhas iniciais, ignorando títulos e contatos evidentes.
+Essas heurísticas não prometem precisão e campos não identificados retornam `null`.
 
-PDF válido sem texto utilizável retorna 422 `PDF_TEXT_UNAVAILABLE`; PDF ilegível retorna
-422 `INVALID_PDF`; a ausência do campo `file` retorna 400 `RESUME_FILE_REQUIRED`. O arquivo
-[fictício de demonstração](samples/sample-resume.pdf) contém nome, e-mail e telefone de exemplo.
+No formulário, as sugestões continuam editáveis e preenchem somente campos vazios: valores já
+digitados manualmente são preservados. A falha de extração não limpa nem bloqueia o cadastro
+manual. PDF válido sem texto utilizável retorna 422 `PDF_TEXT_UNAVAILABLE`; PDF ilegível retorna
+422 `INVALID_PDF`; a ausência do campo `file` retorna 400 `RESUME_FILE_REQUIRED`. O
+[PDF textual fictício de demonstração](samples/sample-resume.pdf) contém somente nome, e-mail
+e telefone fictícios.
 
 A validação concluída da Issue #5 registrou `npm test` com 22/22 testes aprovados e
 `npm run test:db` com 2/2. No Swagger, o PDF fictício retornou HTTP 200 com
@@ -338,6 +357,17 @@ npm run preview
 O preview está disponível em <http://127.0.0.1:4173> e serve apenas para inspeção local
 do build. Encerre o backend em desenvolvimento antes de iniciar sua versão compilada
 na mesma porta. Os builds são gerados em `dist/` de cada projeto.
+
+### Verificação final do repositório
+
+Após os checks de cada aplicação, execute na raiz:
+
+```powershell
+git diff --check
+```
+
+Esse comando verifica espaços em branco e outros problemas no diff; não é requisito de runtime
+da aplicação.
 
 ### Verificação funcional básica
 
@@ -452,6 +482,21 @@ genérico de validação. A especificação OpenAPI é pequena e mantida manualm
 Para PDF, a rota delega ao controller e ao serviço de extração; não há repository, entidade
 ou persistência. O currículo é descartado depois da requisição.
 
+## Limitações atuais
+
+- Não há autenticação, edição ou exclusão de candidatos.
+- Não há busca, filtros ou paginação na listagem.
+- A extração não usa OCR nem IA/LLM; PDFs precisam conter texto extraível.
+- As heurísticas de nome, e-mail e telefone não cobrem todos os layouts de currículo.
+- A configuração Docker/SQL Server documentada é voltada ao ambiente local do desafio.
+- O warning TLS local `DEP0123` pode aparecer ao usar `127.0.0.1` com TLS.
+
+## Possíveis melhorias futuras
+
+OCR, parsing mais robusto, autenticação, edição e exclusão, busca, filtros, paginação,
+configuração de produção e testes E2E mais amplos são extensões futuras e não fazem parte da
+implementação entregue.
+
 ## Problemas comuns
 
 - **Manifesto não encontrado:** execute npm dentro de `frontend/` ou `backend/`.
@@ -473,12 +518,11 @@ ou persistência. O currículo é descartado depois da requisição.
   ocorre nas conexões com `127.0.0.1` e TLS. Foi observado como não bloqueante nas validações;
   nenhuma alteração de código foi feita para ocultá-lo nesta tarefa.
 
-## Processo e próximos passos
+## Processo de entrega
 
-Consulte [DESENVOLVIMENTO.md](DESENVOLVIMENTO.md) para decisões, participação da IA,
-ajustes solicitados pelo desenvolvedor e resultados de validação. [AGENTS.md](AGENTS.md)
-direciona para os documentos específicos de contexto.
+[DESENVOLVIMENTO.md](DESENVOLVIMENTO.md) registra as decisões, participação da IA, revisões
+humanas e resultados de validação. [AGENTS.md](AGENTS.md) direciona para o contexto técnico
+específico do projeto.
 
-O desenvolvimento avança por Issues e planos aprovados. As Issues #3 e #5 estão implementadas
-e validadas, aguardando revisão, commit e PR autorizados pelo desenvolvedor. A próxima entrega
-tratará da interface de cadastro e consulta.
+As entregas seguiram Issues, planos aprovados, verificação, revisão e integração à `main`.
+A documentação desta entrega consolida o estado final sem alterar o comportamento da aplicação.
