@@ -25,9 +25,14 @@ A publicação depende da minha autorização. Na revisão da fundação, ainda 
 commit, push, abertura de PR ou merge das alterações da Issue #1; o PR dessa entrega
 foi posteriormente identificado como #2.
 
-Este documento acompanha o projeto em andamento. A fundação, a API de candidatos com
-persistência SQL e a extração de sugestões de currículo PDF estão implementadas. A interface
-de cadastro e consulta fica para as próximas Issues.
+Ao longo das entregas, usei o fluxo `Issue → branch → implementação → verificação → PR →
+revisão → squash merge → main`. A fundação, backend e SQL Server, extração PDF, frontend e
+revisão de qualidade foram integrados, respectivamente, pelos PRs #2, #4, #6, #8 e #10. O
+histórico da `main` preserva essa evolução sem reescrita.
+
+Este documento registra o desenvolvimento concluído do projeto. As entregas de fundação,
+API e SQL Server, extração de sugestões de currículo PDF, interface de cadastro e consulta e
+revisão de qualidade foram implementadas, verificadas e integradas à `main`.
 
 Na Issue #3, iniciei a API de candidatos e a persistência na branch `feat/candidate-api`.
 Corrigi a referência inicial à Issue #2, que corresponde ao PR da fundação, e aprovei
@@ -39,7 +44,7 @@ exaustiva: 12 testes locais e 2 testes SQL separados. Inicialmente, a integraç�
 ficou pendente por falta do banco de teste e de `TEST_DB_*`. Depois, configurei manualmente
 o SQL Server via Docker Desktop, os bancos e os logins, e realizei as validações manuais
 descritas na seção 5. O quality gate final passou, incluindo os 14 testes automatizados.
-A Issue #3 está implementada e validada, aguardando apenas revisão, commit e PR.
+A Issue #3 foi revisada, entregue pelo PR #4 e integrada à `main` por squash merge.
 
 Na Issue #5, aprovei um plano restrito ao backend para receber um currículo PDF e retornar
 sugestões editáveis de nome, e-mail e telefone, sem cadastrar candidatos. Solicitei leitura
@@ -61,18 +66,18 @@ Swagger com o PDF fictício e com um arquivo inválido, conforme registrado na s
 | Separação entre `app.ts` e `server.ts`            | A composição do Express ficou separada da abertura da porta, permitindo importar a aplicação nos testes sem iniciar um servidor automaticamente.                                                                              |
 | TypeScript 5.9.3 nos dois projetos                | Solicitei uma versão estável da linha 5.x para reduzir risco. O Codex confirmou a compatibilidade declarada com `typescript-eslint@8.71.0`, cuja faixa é `>=4.8.4 <6.1.0`, e verificou tipos e builds.                        |
 | ESLint e Prettier com responsabilidades distintas | Adotei lint para análise de código e Prettier para formatação, com uma configuração de formatação compartilhada na raiz.                                                                                                      |
-| Dependências somente quando necessárias           | Adiei bibliotecas até suas funcionalidades: Zod e `mssql` entraram na Issue #3; React Hook Form e PDF continuam para etapas futuras. O carregamento nativo de `.env` evitou `dotenv`; `tsx` é dependência de desenvolvimento. |
+| Dependências somente quando necessárias           | Adiei bibliotecas até suas funcionalidades: Zod e `mssql` entraram na Issue #3; `pdfjs-dist` e Multer entraram na Issue #5; React Hook Form e resolvers entraram na Issue #7. O carregamento nativo de `.env` evitou `dotenv`; `tsx` é dependência de desenvolvimento. |
 | SQL Server 2022 via Docker Desktop                | Optei por fornecer somente o banco em container, evitando uma instalação adicional de SQL Server/SSMS no Windows. Frontend e backend continuam executados pelo npm no host.                                                   |
 | Suíte enxuta e banco de teste separado            | Mantive 12 testes locais e 2 SQL representativos. A integração usa exclusivamente `TEST_DB_*`, o banco `ResumeRegistration_test` e o login dedicado `resume_test`.                                                            |
 | Extração PDF em memória                           | Na Issue #5, aprovei `pdfjs-dist` para texto de PDF e Multer somente para multipart em memória. O endpoint não persiste arquivos, não usa OCR e não altera SQL/schema.                                                        |
 | Formulário único com sugestões não destrutivas    | Na Issue #7, aprovei React Hook Form, Zod e um client `fetch` explícito. Sugestões de PDF só preenchem campos vazios; valores digitados são preservados, e a persistência exige confirmação explícita.                        |
 
-Também defini decisões de domínio e persistência para esta e as próximas entregas:
+Também defini decisões de domínio e persistência aplicadas nas entregas:
 
 - SQL Server local via Docker Desktop, com `mssql`, SQL parametrizado e usuários SQL
   dedicados, sem ORM. Essa integração foi implementada e validada na Issue #3.
 - Um único formulário e um único processo final de persistência para cadastro manual e
-  cadastro auxiliado por PDF. A extração apenas sugerirá dados para revisão.
+  cadastro auxiliado por PDF. A extração apenas sugere dados para revisão.
 - PDF processado em memória e descartado, com limite de `5 * 1024 * 1024` bytes.
   Decidi não criar armazenamento de arquivos ou entidade de currículo, pois não são exigidos.
 - E-mail sem unicidade, porque essa regra não faz parte do desafio. Os limites dos campos
@@ -97,8 +102,8 @@ da aplicação somente no `backend/.env`, ignorado pelo Git, e placeholders no `
 
 ### Ferramentas e modelos
 
-- **ChatGPT (OpenAI) — GPT-5.6 Sol:** utilizei para planejamento, explicações, revisão e
-  orientação, incluindo discussão arquitetural, organização do trabalho e revisão de prompts.
+- **ChatGPT (OpenAI) — GPT-5.6 Sol:** utilizei para planejamento, discussão arquitetural,
+  explicações, revisão, orientação de debugging, preparação de prompts e documentação.
 - **Codex (OpenAI) — GPT-6 Astra com Extra High:** utilizei inicialmente na Issue #3.
   Interrompi a execução após consumo excessivo de tokens e geração de uma suíte de 61 testes.
 - **Codex (OpenAI) — GPT-5.6 Terra High:** retomei o trabalho com esse modelo, que reduziu
@@ -121,7 +126,9 @@ aprovação dos planos e solicitação de ajustes. Configurei manualmente o SQL 
 e realizei as validações manuais descritas na seção 5, além da verificação visual do frontend.
 O código-fonte e as configurações do projeto foram produzidos pelo Codex sob minha revisão
 e aprovação; não atribuo a mim a escrita manual desse código. A configuração local dos
-bancos, logins e credenciais foi minha.
+bancos, logins e credenciais foi minha. Executei comandos manualmente, validei Swagger e a
+interface, investiguei o comportamento do watcher, revisei os PRs e decidi as correções e os
+limites de escopo antes da integração final.
 
 Na Issue #5, utilizei o Codex para verificar a compatibilidade pública das dependências,
 implementar a rota, o serviço, a documentação e os testes após minha aprovação do plano.
@@ -140,6 +147,10 @@ Os exemplos abaixo são trechos curtos dos pedidos que orientaram o trabalho:
 | “Antes de realizar qualquer alteração, faça uma análise de recuperação do estado atual” | Após a interrupção do ambiente, pedi a inspeção do trabalho existente e aprovei a continuação sem recriar o projeto.                         |
 | “Não faça commit nem push automaticamente”                                              | Mantive a revisão e a publicação das alterações sob minha autorização.                                                                       |
 | “Reescreva o DESENVOLVIMENTO.md em primeira pessoa”                                     | Solicitei a reorganização deste documento como meu relato técnico, preservando a atribuição das implementações e verificações feitas com IA. |
+| “Planeje a API e o SQL Server sem alterar o schema fora do necessário”                    | Restringi a implementação ao cadastro, consulta, SQL Server e testes de integração isolados. |
+| “Extraia PDF somente em memória, com 5 MiB exatos e sem OCR”                               | Fixei o contrato de extração, a validação de MIME e assinatura e o orçamento de dez testes. |
+| “Use um único formulário e preserve valores manuais ao sugerir dados do PDF”               | Direcionei o frontend para sugestões não destrutivas, edição e confirmação antes do POST. |
+| “Revise qualidade e integração sem criar testes ou refatorações por preferência”           | Mantive a revisão focada em contratos, higiene, gates e uma correção concreta de versões. |
 
 ## 4. Sugestões corrigidas, adaptadas ou descartadas
 
@@ -161,8 +172,9 @@ Durante o planejamento e a revisão, fiz os seguintes ajustes:
   minha, sem esconder a participação do Codex ou transformar código gerado com IA em
   suposta implementação manual.
 - **Suíte excessiva na Issue #3:** interrompi a execução inicial com 61 testes e solicitei
-  uma suíte proporcional ao desafio. Na retomada, o Codex a reduziu para 12 testes locais
-  e 2 SQL, preservando cenários representativos.
+  uma suíte proporcional ao desafio. Na retomada, o Codex GPT-5.6 Terra High a reduziu para
+  12 testes locais e 2 SQL, preservando cenários representativos. Nas etapas de PDF e frontend,
+  defini budgets explícitos de no máximo dez novos testes em cada uma.
 - **Ambiente SQL local:** substituí a orientação inicial de instalar SQL Server e SSMS
   no Windows pelo Docker Desktop, administrando o banco com `sqlcmd` dentro do container.
 
@@ -171,6 +183,30 @@ Um conflito de porta mostrou que o callback de `listen` do Express recebia o err
 mas o código ainda emitia uma mensagem de inicialização bem-sucedida. O Codex ajustou
 o callback para anunciar sucesso somente quando não houvesse erro, preservando a mensagem
 de falha e a saída com código 1. Essa correção foi pontual e não alterou a arquitetura.
+
+Na validação do frontend da Issue #7, uma primeira extração de PDF retornou 502. Antes de
+atribuir o problema ao proxy ou à interface, investiguei os logs e confirmei que `node --watch`
+reiniciava o backend ao observar o worker do PDF.js em `node_modules`. A correção inicial
+restringiu o watch a `src` com `--watch-path=src` e aparentemente resolveu aquele cenário.
+
+No smoke final da Issue #11, o problema reapareceu: os logs mostraram reinícios por arquivos de
+`pdfjs-dist` e também de `iconv-lite` em `node_modules`, interrompendo requisições com 502. Isso
+demonstrou que a mitigação anterior não era confiável no ambiente utilizado. Como hot reload não
+é requisito do desafio, a solução final removeu o watcher do script `dev`, priorizando
+estabilidade e reinicialização manual após mudanças de código.
+
+Após essa alteração, concluí o smoke manual final: o cadastro manual retornou 201 e o GET
+imediato retornou 200; a primeira extração de `samples/sample-resume.pdf` após iniciar o backend
+retornou 200 com nome, e-mail e telefone sugeridos. Não houve 502, `ECONNRESET`, mensagens de
+`Change detected` ou `Restarting` por dependências em `node_modules`. O PDF inválido continuou
+retornando 415, o fluxo manual permaneceu utilizável e a Network não apresentou falhas
+inesperadas da aplicação.
+
+O Console exibiu duas ocorrências de `Cannot read properties of undefined (reading 'startTime')`
+em `et.reportAllChanges`, originadas por código Web Vitals injetado pelo Chromium DevTools
+(`VM...`/`<anonymous>`). Verifiquei que o frontend não possui `web-vitals` como dependência e não
+houve frame apontando para código da aplicação; tratei essas ocorrências como observação externa
+ao projeto, não como falha da interface.
 
 ## 5. Verificação da solução
 
@@ -312,9 +348,10 @@ editáveis e que um PDF inválido renomeado como `.pdf` retorna 415
 
 Durante essa validação, a primeira extração recebia 502 porque `node --watch` observava o
 worker do `pdfjs-dist` em `node_modules` e reiniciava o backend, interrompendo a requisição.
-Não era falha do proxy ou do frontend. O Codex corrigiu somente o script `dev`, restringindo o
-watch com `--watch-path=src`. Após iniciar o backend do zero, a primeira extração retornou 200
-sem reinício indevido.
+Não era falha do proxy ou do frontend. A restrição inicial do watch com `--watch-path=src`
+pareceu estabilizar esse cenário, mas o smoke final da Issue #11 demonstrou novos reinícios por
+dependências, inclusive `iconv-lite`. O watcher foi então removido do script `dev`, pois hot
+reload não era requisito e a estabilidade do processo era prioritária.
 
 ### Revisão de qualidade e integração da Issue #9
 
@@ -341,53 +378,67 @@ sugestões preservaram valores manuais, continuaram editáveis e um PDF inválid
 inutilizar o formulário. Lista, detalhe, rota não encontrada, responsividade mobile e navegação
 por teclado funcionaram; Console e Network não apresentaram erros inesperados.
 
-Após reiniciar o backend, a primeira extração de PDF retornou HTTP 200 e o processo não reiniciou
-por eventos de `pdfjs-dist`, confirmando a correção do watcher nesta regressão final.
+Na regressão da Issue #9, a primeira extração de PDF retornou HTTP 200 sem reinício por
+`pdfjs-dist`. Esse resultado foi válido para aquele cenário, mas o smoke posterior da Issue #11
+mostrou que a restrição do watch não era confiável para todos os carregamentos de dependências.
 
-## 6. Dificuldades e limitações
+## 6. Dificuldades
 
-Durante a implementação da fundação houve uma interrupção do ambiente de desenvolvimento. Na retomada,
-pedi uma análise somente de leitura do Git, fontes, configurações, dependências e documentação.
-Aprovei a continuação após essa inspeção, preservando o trabalho válido sem reconstrução
-ou descarte das alterações existentes.
+Durante a implementação da fundação houve uma interrupção do ambiente de desenvolvimento. Na
+retomada, pedi uma análise somente de leitura do Git, fontes, configurações, dependências e
+documentação. Aprovei a continuação após essa inspeção, preservando o trabalho válido sem
+reconstrução ou descarte das alterações existentes.
 
-A execução do agente encontrou restrições de acesso, rede e gravação de arquivos.
-Os comandos afetados foram repetidos com as permissões necessárias, sem alterar configurações
-globais ou introduzir requisitos específicos para executar o projeto. Também houve um ajuste
-de codificação no comando usado para verificar texto acentuado no navegador, sem mudança
-nos textos da aplicação.
+A execução do agente encontrou restrições de acesso, rede e gravação de arquivos. Os comandos
+afetados foram repetidos com as permissões necessárias, sem alterar configurações globais ou
+introduzir requisitos específicos para executar o projeto. Também houve um ajuste de codificação
+no comando usado para verificar texto acentuado no navegador, sem mudança nos textos da aplicação.
 
-O conflito de porta durante a troca entre desenvolvimento e execução compilada levou à
-correção real do log de inicialização descrita na seção 4. Após encerrar o processo anterior,
-o backend compilado iniciou normalmente.
+O conflito de porta durante a troca entre desenvolvimento e execução compilada levou à correção
+real do log de inicialização descrita na seção 4. Após encerrar o processo anterior, o backend
+compilado iniciou normalmente.
 
-Na Issue #3, interrompi a execução inicial do Codex GPT-6 Astra com Extra High pelo
-consumo excessivo de tokens e pela suíte de 61 testes. Retomei com Codex GPT-5.6 Terra High,
-com a redução e conclusão descritas acima. A falta inicial de um ambiente SQL foi
-resolvida com o provisionamento manual via Docker Desktop.
+Na Issue #3, interrompi a execução inicial do Codex GPT-6 Astra com Extra High pelo consumo
+excessivo de tokens e pela suíte de 61 testes. Retomei com Codex GPT-5.6 Terra High, com a
+redução e conclusão descritas acima. A falta inicial de um ambiente SQL foi resolvida com o
+provisionamento manual via Docker Desktop.
 
 Durante as conexões SQL locais, observei o warning não bloqueante
-`[DEP0123] DeprecationWarning: Setting the TLS ServerName to an IP address...`, associado
-ao uso de `127.0.0.1` com TLS. Os testes e as validações passaram; nesta tarefa documental,
-não foi feita alteração de código para ocultar esse aviso.
+`[DEP0123] DeprecationWarning: Setting the TLS ServerName to an IP address...`, associado ao
+uso de `127.0.0.1` com TLS. Os testes e as validações passaram; não foi feita alteração de
+código apenas para ocultar esse aviso.
 
-A fundação, o cadastro e a consulta pela API, a integração com SQL Server, a extração PDF e
-as telas de cadastro, lista e detalhe estão implementados. A extração permanece limitada a PDF
-com camada textual: não há OCR e as heurísticas não prometem reconhecer todos os formatos. A
-validação manual da interface foi concluída com sucesso.
+## 7. Limitações atuais
 
-## 7. Tempo dedicado
+- Não há autenticação, edição ou exclusão de candidatos.
+- Não há busca, filtros ou paginação na listagem.
+- A extração exige PDF com camada textual; não há OCR nem uso de IA/LLM.
+- As heurísticas de nome, e-mail e telefone não prometem cobrir todos os layouts de currículo.
+- A configuração Docker/SQL Server documentada é voltada ao ambiente local do desafio.
+- O warning TLS `DEP0123` pode aparecer na configuração local documentada.
 
-O tempo dedicado será consolidado ao final do desafio.
+## 8. Tempo dedicado
 
-**[PREENCHER: tempo aproximado por etapa e total, conforme meu controle de horas.]**
+Os tempos abaixo são estimativas aproximadas baseadas nas sessões de desenvolvimento. Não houve
+controle minuto a minuto por cronômetro.
 
-## 8. Melhorias com mais tempo
+| Etapa | Tempo aproximado |
+| --- | ---: |
+| Planejamento e fundação | ~3 h |
+| Backend e SQL Server | ~4 h |
+| Extração de PDF | ~2,5 h |
+| Frontend | ~3,5 h |
+| Qualidade e integração | ~1,5 h |
+| Documentação e preparação da entrega | ~1,5 h |
+| Total aproximado | ~16 h |
 
-Consolidarei esta seção após implementar e verificar as funcionalidades principais.
-Por enquanto, não defini uma lista definitiva de melhorias adicionais.
+## 9. Possíveis melhorias futuras
 
-A API de candidatos e a integração real com o banco já foram verificadas na Issue #3.
-A extração PDF foi validada automaticamente e manualmente. As próximas entregas terão
-validações próprias para a interface. Ao final, registrarei as limitações observadas e as
-melhorias que considerar justificadas, com seus respectivos motivos.
+Sem alterar o escopo entregue, futuras extensões poderiam incluir OCR para currículos
+digitalizados, parsing mais robusto, autenticação, edição e exclusão de candidatos, busca,
+filtros, paginação, configuração de deployment produtivo e testes E2E mais amplos.
+
+## 10. Encerramento da entrega
+
+A documentação final consolida as decisões, verificações, limitações e participação de IA do
+desafio.
